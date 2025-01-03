@@ -12,6 +12,7 @@ import (
 type App struct {
 	ctx context.Context
 	deviceService *services.DeviceService
+	fileService *services.FileService
 	server *server.Server
 }
 
@@ -23,7 +24,8 @@ func NewApp() *App {
 func (a *App) Startup(ctx context.Context) {
     a.ctx = ctx
     a.deviceService = services.NewDeviceService(ctx)
-    a.server = server.NewServer(ctx, a.deviceService)
+	a.fileService = services.NewFileService(ctx)
+    a.server = server.NewServer(ctx, a.deviceService, a.fileService)
 }
 
 func (a *App) StartServer(port int) error {

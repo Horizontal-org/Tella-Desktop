@@ -16,13 +16,15 @@ type Server struct {
     port     int
 	ctx      context.Context
 	deviceService ports.DeviceService
+    fileService ports.FileService
 }
 
-func NewServer(ctx context.Context, deviceService ports.DeviceService) *Server {
+func NewServer(ctx context.Context, deviceService ports.DeviceService, fileService ports.FileService) *Server {
     return &Server{
         running: false,
 		ctx:     ctx,
 		deviceService: deviceService,
+        fileService:  fileService,
     }
 }
 
@@ -35,9 +37,11 @@ func (s *Server) Start(ctx context.Context, port int) error {
 	
 	// Initialize handlers
     registerHandler := handlers.NewRegisterHandler(s.deviceService)
-    
+    uploadHandler := handlers.NewUploadHandler(s.fileService)
     // Register routes
     mux.HandleFunc("/api/localsend/v2/register", registerHandler.Handle)
+    mux.HandleFunc("/api/localsend/v2/prepare-upload", uploadHandler.HandlePrepare)
+    mux.HandleFunc("/api/localsend/v2/upload", uploadHandler.HandleUpload)
 
     s.server = &http.Server{
         Addr:    fmt.Sprintf(":%d", port),
