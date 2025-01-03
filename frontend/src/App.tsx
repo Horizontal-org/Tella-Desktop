@@ -1,26 +1,35 @@
 import {useState} from 'react';
 import logo from './assets/images/logo-universal.png';
 import './App.css';
-import {Greet} from "../wailsjs/go/app/App";
+import { StartServer, IsServerRunning, StopServer } from '../wailsjs/go/app/App';
+
+const SERVER_PORT = 53317
 
 function App() {
-    const [resultText, setResultText] = useState("Please enter your name below 👇");
-    const [name, setName] = useState('');
-    const updateName = (e: any) => setName(e.target.value);
-    const updateResultText = (result: string) => setResultText(result);
+    const [serverRunning, setServerRunning] = useState(false)
 
-    function greet() {
-        Greet(name).then(updateResultText);
+    const handleServerToggle = async () => {
+        try {
+            if(serverRunning) {
+                await StopServer()
+                setServerRunning(false)
+            } else {
+                await StartServer(SERVER_PORT)
+                setServerRunning(true)
+            }
+        } catch (error) {
+            console.error('Failed to start server:', error)
+        }
     }
 
     return (
-        <div id="App">
-            <img src={logo} id="logo" alt="logo"/>
-            <div id="result" className="result">{resultText}</div>
-            <div id="input" className="input-box">
-                <input id="name" className="input" onChange={updateName} autoComplete="off" name="input" type="text"/>
-                <button className="btn" onClick={greet}>Greet</button>
+        <div>
+            <div>
+                {serverRunning && <p>Server is running on port 53317</p>}
             </div>
+            <button onClick={handleServerToggle}>
+                {serverRunning ? 'Stop Server' : 'Start Server'}
+            </button>
         </div>
     )
 }
