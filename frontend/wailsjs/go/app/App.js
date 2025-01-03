@@ -10,6 +10,14 @@ export function IsServerRunning() {
   return window['go']['app']['App']['IsServerRunning']();
 }
 
+export function RegisterWithDevice(arg1, arg2) {
+  return window['go']['app']['App']['RegisterWithDevice'](arg1, arg2);
+}
+
+export function SendTestFile(arg1, arg2, arg3) {
+  return window['go']['app']['App']['SendTestFile'](arg1, arg2, arg3);
+}
+
 export function StartServer(arg1) {
   return window['go']['app']['App']['StartServer'](arg1);
 }

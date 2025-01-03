@@ -20,12 +20,12 @@ export function LocalIpList() {
     if(localIPs.length > 0) {
         return (
             <div>
-                <h3>Local IP Addresses:</h3>
-                <ul>
+                <h2>Local IP Addresses:</h2>
+                <ul className="list">
                     {localIPs.map((ip, index) => (
-                    <li key={index}>
-                        {ip}
-                    </li>
+                        <li key={index} className="list-item">
+                            {ip}
+                        </li>
                     ))}
                 </ul>
             </div>
