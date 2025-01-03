@@ -1,7 +1,7 @@
 import {useState} from 'react';
-import logo from './assets/images/logo-universal.png';
 import './App.css';
-import { StartServer, IsServerRunning, StopServer } from '../wailsjs/go/app/App';
+import { StartServer, StopServer } from '../wailsjs/go/app/App';
+import { Notifications } from './Components/Notifications';
 
 const SERVER_PORT = 53317
 
@@ -30,6 +30,8 @@ function App() {
             <button onClick={handleServerToggle}>
                 {serverRunning ? 'Stop Server' : 'Start Server'}
             </button>
+
+            <Notifications />
         </div>
     )
 }

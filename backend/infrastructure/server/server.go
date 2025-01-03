@@ -5,6 +5,9 @@ import (
     "fmt"
     "net/http"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"Tella-Desktop/backend/core/ports"
+    "Tella-Desktop/backend/handlers"
 )
 
 type Server struct {
@@ -12,12 +15,14 @@ type Server struct {
     running  bool
     port     int
 	ctx      context.Context
+	deviceService ports.DeviceService
 }
 
-func NewServer(ctx context.Context) *Server {
+func NewServer(ctx context.Context, deviceService ports.DeviceService) *Server {
     return &Server{
         running: false,
 		ctx:     ctx,
+		deviceService: deviceService,
     }
 }
 
@@ -27,6 +32,13 @@ func (s *Server) Start(ctx context.Context, port int) error {
     }
 
     mux := http.NewServeMux()
+	
+	// Initialize handlers
+    registerHandler := handlers.NewRegisterHandler(s.deviceService)
+    
+    // Register routes
+    mux.HandleFunc("/api/localsend/v2/register", registerHandler.Handle)
+
     s.server = &http.Server{
         Addr:    fmt.Sprintf(":%d", port),
         Handler: mux,

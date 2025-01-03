@@ -2,13 +2,16 @@ package app
 
 import (
 	"context"
+
 	"Tella-Desktop/backend/core/services"
+	"Tella-Desktop/backend/infrastructure/server"
 )
 
 // App struct
 type App struct {
 	ctx context.Context
-	serverService *services.ServerService
+	deviceService *services.DeviceService
+	server *server.Server
 }
 
 // NewApp creates a new App application struct
@@ -18,17 +21,18 @@ func NewApp() *App {
 
 func (a *App) Startup(ctx context.Context) {
     a.ctx = ctx
-	a.serverService = services.NewServerService(ctx)
+    a.deviceService = services.NewDeviceService(ctx)
+    a.server = server.NewServer(ctx, a.deviceService)
 }
 
 func (a *App) StartServer(port int) error {
-    return a.serverService.Start(a.ctx, port)
+    return a.server.Start(a.ctx, port)
 }
 
 func (a *App) StopServer() error {
-    return a.serverService.Stop(a.ctx)
+    return a.server.Stop(a.ctx)
 }
 
 func (a *App) IsServerRunning() bool {
-    return a.serverService.IsRunning()
+    return a.server.IsRunning()
 }
