@@ -5,6 +5,7 @@ import (
 
 	"Tella-Desktop/backend/core/services"
 	"Tella-Desktop/backend/infrastructure/server"
+	"Tella-Desktop/backend/utils/network"
 )
 
 // App struct
@@ -35,4 +36,9 @@ func (a *App) StopServer() error {
 
 func (a *App) IsServerRunning() bool {
     return a.server.IsRunning()
+}
+
+// network functions
+func (a *App) GetLocalIPs() ([]string, error) {
+    return network.GetLocalIPs()
 }
