@@ -1,35 +1,34 @@
-package handlers
+package transfer
 
 import (
     "encoding/json"
     "net/http"
-    "Tella-Desktop/backend/core/models"
-    "Tella-Desktop/backend/core/ports"
 )
 
-type UploadHandler struct {
-    fileService ports.FileService
+type Handler struct {
+    service Service
 }
 
-func NewUploadHandler(fileService ports.FileService) *UploadHandler {
-    return &UploadHandler{
-        fileService: fileService,
+
+func NewHandler(service Service) *Handler {
+    return &Handler{
+        service: service,
     }
 }
 
-func (h *UploadHandler) HandlePrepare(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePrepare(w http.ResponseWriter, r *http.Request) {
     if r.Method != http.MethodPost {
         w.WriteHeader(http.StatusMethodNotAllowed)
         return
     }
 
-    var request models.PrepareUploadRequest
+    var request PrepareUploadRequest
     if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
         http.Error(w, "Invalid request body", http.StatusBadRequest)
         return
     }
 
-    response, err := h.fileService.PrepareUpload(&request)
+    response, err := h.service.PrepareUpload(&request)
     if err != nil {
         http.Error(w, "Failed to prepare upload", http.StatusInternalServerError)
         return
@@ -39,7 +38,7 @@ func (h *UploadHandler) HandlePrepare(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(response)
 }
 
-func (h *UploadHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
     if r.Method != http.MethodPost {
         w.WriteHeader(http.StatusMethodNotAllowed)
         return
@@ -49,7 +48,7 @@ func (h *UploadHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
     fileId := r.URL.Query().Get("fileId")
     token := r.URL.Query().Get("token")
 
-    if !h.fileService.ValidateTransfer(sessionId, fileId, token) {
+    if !h.service.ValidateTransfer(sessionId, fileId, token) {
         http.Error(w, "Invalid transfer", http.StatusBadRequest)
         return
     }
@@ -61,7 +60,7 @@ func (h *UploadHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
     }
     defer file.Close()
 
-    if err := h.fileService.SaveFile(sessionId, fileId, token, header.Filename, file); err != nil {
+    if err := h.service.SaveFile(sessionId, fileId, token, header.Filename, file); err != nil {
         http.Error(w, "Failed to save file", http.StatusInternalServerError)
         return
     }

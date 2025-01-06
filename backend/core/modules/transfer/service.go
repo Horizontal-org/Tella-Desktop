@@ -1,7 +1,6 @@
-package services
+package transfer
 
 import (
-    "Tella-Desktop/backend/core/models"
     "io"
     "os"
     "path/filepath"
@@ -10,32 +9,21 @@ import (
     "context"
 )
 
-type FileService struct {
+type service struct {
     ctx       context.Context
     uploadDir string
-    transfers map[string]*models.FileTransfer
+    transfers map[string]*Transfer
 }
 
-func NewFileService(ctx context.Context) *FileService {
-    uploadDir := getUploadDirectory()
-    return &FileService{
+func NewService(ctx context.Context) Service {
+    return &service{
         ctx:       ctx,
-        uploadDir: uploadDir,
-        transfers: make(map[string]*models.FileTransfer),
+        uploadDir: getUploadDirectory(),
+        transfers: make(map[string]*Transfer),
     }
 }
 
-func getUploadDirectory() string {
-    homeDir, err := os.UserHomeDir()
-    if err != nil {
-        return filepath.Join(".", "uploads")
-    }
-    uploadsDir := filepath.Join(homeDir, "Documents", "TellaUploads")
-    os.MkdirAll(uploadsDir, 0755)
-    return uploadsDir
-}
-
-func (s *FileService) PrepareUpload(request *models.PrepareUploadRequest) (*models.PrepareUploadResponse, error) {
+func (s *service) PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadResponse, error) {
     sessionId := uuid.New().String()
     fileTokens := make(map[string]string)
 
@@ -43,7 +31,7 @@ func (s *FileService) PrepareUpload(request *models.PrepareUploadRequest) (*mode
         token := uuid.New().String()
         fileTokens[fileId] = token
 
-        s.transfers[fileId] = &models.FileTransfer{
+        s.transfers[fileId] = &Transfer{
             ID:        fileId,
             SessionID: sessionId,
             Token:     token,
@@ -54,13 +42,13 @@ func (s *FileService) PrepareUpload(request *models.PrepareUploadRequest) (*mode
         }
     }
 
-    return &models.PrepareUploadResponse{
+    return &PrepareUploadResponse{
         SessionID: sessionId,
         Files:    fileTokens,
     }, nil
 }
 
-func (s *FileService) SaveFile(sessionId string, fileId string, token string, fileName string, reader io.Reader) error {
+func (s *service) SaveFile(sessionId, fileId, token, fileName string, reader io.Reader) error {
     filePath := filepath.Join(s.uploadDir, fileName)
     
     // Create destination file
@@ -81,10 +69,20 @@ func (s *FileService) SaveFile(sessionId string, fileId string, token string, fi
     return nil
 }
 
-func (s *FileService) ValidateTransfer(sessionId string, fileId string, token string) bool {
+func (s *service) ValidateTransfer(sessionId, fileId, token string) bool {
     transfer, exists := s.transfers[fileId]
     if !exists {
         return false
     }
     return transfer.SessionID == sessionId && transfer.Token == token
+}
+
+func getUploadDirectory() string {
+    homeDir, err := os.UserHomeDir()
+    if err != nil {
+        return filepath.Join(".", "uploads")
+    }
+    uploadsDir := filepath.Join(homeDir, "Documents", "TellaUploads")
+    os.MkdirAll(uploadsDir, 0755)
+    return uploadsDir
 }

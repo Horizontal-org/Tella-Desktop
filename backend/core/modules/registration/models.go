@@ -1,4 +1,4 @@
-package models
+package registration
 
 type Device struct {
     Alias       string

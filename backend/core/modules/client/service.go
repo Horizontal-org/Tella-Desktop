@@ -1,4 +1,5 @@
-package services
+// core/modules/client/service.go
+package client
 
 import (
     "bytes"
@@ -11,17 +12,17 @@ import (
     "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-type ClientService struct {
+type service struct {
     ctx context.Context
 }
 
-func NewClientService(ctx context.Context) *ClientService {
-    return &ClientService{
+func NewService(ctx context.Context) Service {
+    return &service{
         ctx: ctx,
     }
 }
 
-func (s *ClientService) RegisterWithDevice(ip string, port int) error {
+func (s *service) RegisterWithDevice(ip string, port int) error {
     client := &http.Client{}
 
     regRequest := struct {
@@ -65,7 +66,7 @@ func (s *ClientService) RegisterWithDevice(ip string, port int) error {
     return nil
 }
 
-func (s *ClientService) SendTestFile(ip string, port int, pin string) error {
+func (s *service) SendTestFile(ip string, port int, pin string) error {
     client := &http.Client{}
     
     // Prepare upload request

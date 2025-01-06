@@ -1,6 +1,6 @@
-package models
+package transfer
 
-type FileTransfer struct {
+type Transfer struct {
     ID            string
     SessionID     string
     Token         string

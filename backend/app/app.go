@@ -3,18 +3,20 @@ package app
 import (
 	"context"
 
-	"Tella-Desktop/backend/core/services"
-	"Tella-Desktop/backend/infrastructure/server"
+	"Tella-Desktop/backend/core/modules/registration"
+    "Tella-Desktop/backend/core/modules/transfer"
+    "Tella-Desktop/backend/core/modules/server"
+	"Tella-Desktop/backend/core/modules/client"
 	"Tella-Desktop/backend/utils/network"
 )
 
 // App struct
 type App struct {
 	ctx context.Context
-	deviceService *services.DeviceService
-	fileService *services.FileService
-	clientService *services.ClientService
-	server *server.Server
+	registrationService registration.Service
+    transferService     transfer.Service
+    serverService      server.Service
+	clientService      client.Service 
 }
 
 func (a *App) RegisterWithDevice(ip string, port int) error {
@@ -32,22 +34,28 @@ func NewApp() *App {
 
 func (a *App) Startup(ctx context.Context) {
     a.ctx = ctx
-    a.deviceService = services.NewDeviceService(ctx)
-	a.fileService = services.NewFileService(ctx)
-	a.clientService = services.NewClientService(ctx)
-    a.server = server.NewServer(ctx, a.deviceService, a.fileService)
+
+	a.registrationService = registration.NewService(a.ctx)
+    a.transferService = transfer.NewService(a.ctx)
+
+	a.serverService = server.NewService(
+        a.ctx,
+        a.registrationService,
+        a.transferService,
+    )
+	a.clientService = client.NewService(a.ctx)
 }
 
 func (a *App) StartServer(port int) error {
-    return a.server.Start(a.ctx, port)
+    return a.serverService.Start(a.ctx, port)
 }
 
 func (a *App) StopServer() error {
-    return a.server.Stop(a.ctx)
+    return a.serverService.Stop(a.ctx)
 }
 
 func (a *App) IsServerRunning() bool {
-    return a.server.IsRunning()
+    return a.serverService.IsRunning()
 }
 
 // network functions
