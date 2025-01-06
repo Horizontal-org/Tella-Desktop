@@ -27,11 +27,3 @@ func (s *DeviceService) RegisterDevice(device *models.Device) error {
     
     return nil
 }
-
-func (s *DeviceService) GetDevice(fingerprint string) (*models.Device, error) {
-    device, exists := s.devices[fingerprint]
-    if !exists {
-        return nil, nil
-    }
-    return device, nil
-}

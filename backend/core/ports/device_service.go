@@ -6,5 +6,4 @@ import (
 
 type DeviceService interface {
     RegisterDevice(device *models.Device) error
-    GetDevice(fingerprint string) (*models.Device, error)
 }
