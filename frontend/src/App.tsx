@@ -4,6 +4,8 @@ import { StartServer, StopServer } from '../wailsjs/go/app/App';
 import { Notifications } from './Components/Notifications';
 import { LocalIpList } from './Components/LocalIpList';
 import { ClientUpload } from './Components/ClientUpload'
+import { CertificateDisplay } from './Components/CertificateDisplay';
+
 const SERVER_PORT = 53317
 
 function App() {
@@ -43,6 +45,7 @@ function App() {
                 </button>
             </div>
 
+            <CertificateDisplay />
             <ClientUpload />
             <Notifications />
         </div>

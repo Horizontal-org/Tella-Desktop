@@ -25,3 +25,7 @@ export function StartServer(arg1) {
 export function StopServer() {
   return window['go']['app']['App']['StopServer']();
 }
+
+export function VerifyServerCertificate(arg1, arg2) {
+  return window['go']['app']['App']['VerifyServerCertificate'](arg1, arg2);
+}

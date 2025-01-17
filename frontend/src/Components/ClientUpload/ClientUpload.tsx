@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RegisterWithDevice, SendTestFile } from '../../../wailsjs/go/app/App';
+import { RegisterWithDevice, SendTestFile, VerifyServerCertificate } from '../../../wailsjs/go/app/App';
 
 export function ClientUpload() {
     const [ip, setIp] = useState('');
@@ -7,6 +7,23 @@ export function ClientUpload() {
     const [pin, setPin] = useState('');
     const [status, setStatus] = useState('');
     const [loading, setLoading] = useState(false);
+    const [certificateVerified, setCertificateVerified] = useState(false);
+
+
+    const handleVerifyCertificate = async () => {
+        try {
+            setLoading(true);
+            setStatus('Verifying server certificate...');
+            await VerifyServerCertificate(ip, parseInt(port));
+            setCertificateVerified(true);
+            setStatus('Certificate received. Please verify the fingerprint before proceeding.');
+        } catch (error) {
+            setStatus(`Certificate verification failed: ${error}`);
+            setCertificateVerified(false);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleRegister = async () => {
         try {
@@ -72,6 +89,13 @@ export function ClientUpload() {
                 </div>
 
                 <div className="button-group">
+                    <button 
+                        onClick={handleVerifyCertificate}
+                        disabled={loading || !ip}
+                        className="button button-primary"
+                    >
+                        Verify Certificate
+                    </button>
                     <button 
                         onClick={handleRegister}
                         disabled={loading || !ip}

@@ -12,3 +12,5 @@ export function SendTestFile(arg1:string,arg2:number,arg3:string):Promise<void>;
 export function StartServer(arg1:number):Promise<void>;
 
 export function StopServer():Promise<void>;
+
+export function VerifyServerCertificate(arg1:string,arg2:number):Promise<void>;
