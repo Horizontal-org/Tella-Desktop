@@ -34,7 +34,7 @@ func NewService(ctx context.Context) Service {
 					hashStr := hex.EncodeToString(hash[:])
 					fmt.Printf("Client Received Certificate Hash: %s\n", hashStr)
 
-					runtime.EventsEmit(ctx, "certificate-hash", hashStr)
+					runtime.EventsEmit(ctx, "client-certificate-hash", hashStr)
 				}
 				return nil
 			},
