@@ -47,7 +47,7 @@ func NewService(
 	return srv
 }
 
-func (s *service) Start(ctx context.Context, port int) error {
+func (s *service) Start(port int) error {
 	if s.running {
 		return fmt.Errorf("server is already running")
 	}
@@ -65,8 +65,7 @@ func (s *service) Start(ctx context.Context, port int) error {
 			ips = append(ips, ip)
 		}
 	}
-
-	tlsConfig, err := tls.GenerateTLSConfig(tls.Config{
+	tlsConfig, err := tls.GenerateTLSConfig(s.ctx, tls.Config{
 		CommonName:   "Tella Desktop",
 		Organization: []string{"Tella"},
 		IPAddresses:  ips,

@@ -1,11 +1,14 @@
 package tls
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -13,6 +16,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type Config struct {
@@ -27,11 +32,17 @@ type certificateFiles struct {
 }
 
 // generates a TLS configuration with a self signed certificate
-func GenerateTLSConfig(config Config) (*tls.Config, error) {
+func GenerateTLSConfig(ctx context.Context, config Config) (*tls.Config, error) {
 	cert, err := generateCertificate(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate certificate: %v", err)
 	}
+
+	//generate hash of certificate
+	hash := sha256.Sum256(cert.Certificate[0])
+	hashStr := hex.EncodeToString(hash[:])
+	runtime.LogDebug(ctx, fmt.Sprintf("Hash value: %s", hashStr))
+	runtime.EventsEmit(ctx, "certificate-hash", hashStr)
 
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},

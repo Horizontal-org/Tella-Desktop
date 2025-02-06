@@ -4,7 +4,10 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"mime/multipart"
@@ -24,6 +27,17 @@ func NewService(ctx context.Context) Service {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true, // Required for self-signed certificates
+			VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+				if len(rawCerts) > 0 {
+					// Compute hash of the certificate
+					hash := sha256.Sum256(rawCerts[0])
+					hashStr := hex.EncodeToString(hash[:])
+					fmt.Printf("Client Received Certificate Hash: %s\n", hashStr)
+
+					runtime.EventsEmit(ctx, "certificate-hash", hashStr)
+				}
+				return nil
+			},
 		},
 	}
 
