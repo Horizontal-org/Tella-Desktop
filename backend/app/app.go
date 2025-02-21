@@ -3,16 +3,20 @@ package app
 import (
 	"context"
 
+	"Tella-Desktop/backend/core/database"
 	"Tella-Desktop/backend/core/modules/client"
 	"Tella-Desktop/backend/core/modules/registration"
 	"Tella-Desktop/backend/core/modules/server"
 	"Tella-Desktop/backend/core/modules/transfer"
 	"Tella-Desktop/backend/utils/network"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
 type App struct {
 	ctx                 context.Context
+	db                  *database.DB
 	registrationService registration.Service
 	transferService     transfer.Service
 	serverService       server.Service
@@ -35,6 +39,15 @@ func NewApp() *App {
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 
+	// Initialize database
+	dbPath := database.GetDatabasePath()
+	db, err := database.Initialize(dbPath)
+	if err != nil {
+		runtime.LogFatalf(ctx, "Failed to initialize database: %v", err)
+		return
+	}
+	a.db = db
+
 	a.registrationService = registration.NewService(a.ctx)
 	a.transferService = transfer.NewService(a.ctx)
 
@@ -44,6 +57,12 @@ func (a *App) Startup(ctx context.Context) {
 		a.transferService,
 	)
 	a.clientService = client.NewService(a.ctx)
+}
+
+func (a *App) Shutdown(ctx context.Context) {
+	if a.db != nil {
+		a.db.Close()
+	}
 }
 
 func (a *App) StartServer(port int) error {
