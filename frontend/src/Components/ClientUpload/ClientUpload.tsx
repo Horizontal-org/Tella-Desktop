@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { RegisterWithDevice, SendTestFile } from '../../../wailsjs/go/app/App';
+import { EventsOn } from '../../../wailsjs/runtime/runtime';
 
 export function ClientUpload() {
     const [ip, setIp] = useState('');
@@ -7,10 +8,21 @@ export function ClientUpload() {
     const [pin, setPin] = useState('');
     const [status, setStatus] = useState('');
     const [loading, setLoading] = useState(false);
+    const [certHash, setCertHash] = useState('');
+
+    useEffect(() => {
+        const cleanup = EventsOn("client-certificate-hash", (data) => {
+            console.log("Client received certificate hash:", data);
+            setCertHash(data.toString());
+        });
+
+        return () => cleanup();
+    }, []);
 
     const handleRegister = async () => {
         try {
             setLoading(true);
+            setCertHash('');
             setStatus('Registering...');
             await RegisterWithDevice(ip, parseInt(port));
             setStatus('Successfully registered with device');
@@ -93,6 +105,14 @@ export function ClientUpload() {
                         {status}
                     </div>
                 )}
+
+                {certHash && (
+                    <div className="status status-success">
+                        <h3>Remote Certificate Hash:</h3>
+                        <code>{certHash.match(/.{1,4}/g)?.join(' ')}</code>
+                    </div>
+                )}
+
             </div>
         </div>
     )
