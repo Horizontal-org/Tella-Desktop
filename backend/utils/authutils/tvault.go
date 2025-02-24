@@ -52,23 +52,37 @@ func ReadTVaultHeader() ([]byte, []byte, error) {
 	}
 	defer file.Close()
 
+	// Read version byte
+	versionByte := make([]byte, 1)
+	if _, err := file.Read(versionByte); err != nil {
+		return nil, nil, constants.ErrCorruptedTVault
+	}
+
 	// Read salt
 	salt := make([]byte, constants.SaltLength)
 	if _, err := file.Read(salt); err != nil {
 		return nil, nil, constants.ErrCorruptedTVault
 	}
 
-	// the rest of the header (minus version and salt) contains the encrypted database key
-	// we'll read up to encryptedKeyMaxSize bytes to account for different encryption overhead
-	encryptedKeyMaxSize := constants.TVaultHeaderSize - 1 - constants.SaltLength
-	encryptedKey := make([]byte, encryptedKeyMaxSize)
-	n, err := file.Read(encryptedKey)
+	// Read encrypted key
+	// We need to read until we hit the padding (zeros)
+	buffer := make([]byte, constants.TVaultHeaderSize-1-constants.SaltLength)
+	n, err := file.Read(buffer)
 	if err != nil && err != io.EOF {
 		return nil, nil, constants.ErrCorruptedTVault
 	}
 
-	// Trim to actual size
-	encryptedKey = encryptedKey[:n]
+	// Find where the actual encrypted key ends (before padding)
+	encryptedKeyLength := n
+	for i := n - 1; i >= 0; i-- {
+		if buffer[i] != 0 {
+			encryptedKeyLength = i + 1
+			break
+		}
+	}
+
+	// Only return the non-padding part of the encrypted key
+	encryptedKey := buffer[:encryptedKeyLength]
 
 	return salt, encryptedKey, nil
 
