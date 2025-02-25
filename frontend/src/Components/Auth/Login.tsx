@@ -1,59 +1,32 @@
-// frontend/src/Components/Auth/Login.tsx
 import React, { useState, useEffect } from 'react';
-import { IsFirstTimeSetup, CreatePassword, VerifyPassword } from '../../../wailsjs/go/app/App';
-import './Auth.css';
+import { VerifyPassword } from '../../../wailsjs/go/app/App';
+import { 
+  AuthContainer, 
+  AuthCard, 
+  CardTitle,
+  CardSubtitle, 
+  FormGroup, 
+  Label, 
+  Input, 
+  AuthButton, 
+  ErrorMessage 
+} from './styles';
 
 interface LoginProps {
   onLoginSuccess: () => void;
+  initialError?: string;
 }
 
-export function Login({ onLoginSuccess }: LoginProps) {
-  const [isFirstTime, setIsFirstTime] = useState<boolean | null>(null);
+export function Login({ onLoginSuccess, initialError = '' }: LoginProps) {
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Check if it's first time setup on component mount
   useEffect(() => {
-    const checkFirstTimeSetup = async () => {
-      try {
-        const isFirst = await IsFirstTimeSetup();
-        setIsFirstTime(isFirst);
-      } catch (error) {
-        console.error('Failed to check if first time setup:', error);
-        setError('Failed to initialize application. Please restart.');
-      }
-    };
-
-    checkFirstTimeSetup();
-  }, []);
-
-  const handleCreatePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    
-    // Basic validation
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
-      return;
+    if (initialError) {
+      setError(initialError);
     }
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await CreatePassword(password);
-      onLoginSuccess();
-    } catch (error: any) {
-      setError(error.toString());
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [initialError]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,22 +48,18 @@ export function Login({ onLoginSuccess }: LoginProps) {
     }
   };
 
-  // Show loading while checking if it's first time setup
-  if (isFirstTime === null) {
-    return <div className="auth-container"><div className="loading">Loading...</div></div>;
-  }
-
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <h1>{isFirstTime ? 'Create Password' : 'Login'}</h1>
+    <AuthContainer>
+      <AuthCard>
+        <CardTitle>Tella</CardTitle>
+        <CardSubtitle>Enter your password to log in</CardSubtitle>
         
-        {error && <div className="error-message">{error}</div>}
+        {error && <ErrorMessage>{error}</ErrorMessage>}
         
-        <form onSubmit={isFirstTime ? handleCreatePassword : handleLogin}>
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
-            <input
+        <form onSubmit={handleLogin}>
+          <FormGroup>
+            <Label htmlFor="password">Password</Label>
+            <Input
               type="password"
               id="password"
               value={password}
@@ -98,31 +67,16 @@ export function Login({ onLoginSuccess }: LoginProps) {
               placeholder="Enter password"
               disabled={loading}
             />
-          </div>
+          </FormGroup>
           
-          {isFirstTime && (
-            <div className="form-group">
-              <label htmlFor="confirmPassword">Confirm Password</label>
-              <input
-                type="password"
-                id="confirmPassword"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm password"
-                disabled={loading}
-              />
-            </div>
-          )}
-          
-          <button 
+          <AuthButton 
             type="submit" 
-            className="auth-button" 
             disabled={loading}
           >
-            {loading ? 'Loading...' : isFirstTime ? 'Create Password' : 'Login'}
-          </button>
+            {loading ? 'Loading...' : 'LOG IN'}
+          </AuthButton>
         </form>
-      </div>
-    </div>
+      </AuthCard>
+    </AuthContainer>
   );
 }

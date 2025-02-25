@@ -5,7 +5,7 @@ import { Notifications } from "./Components/Notifications";
 import { LocalIpList } from "./Components/LocalIpList";
 import { ClientUpload } from "./Components/ClientUpload";
 import { CertificateHash } from "./Components/CertificateHash";
-import { Login } from "./Components/Auth";
+import { Auth } from "./Components/Auth";
 const SERVER_PORT = 53317;
 
 function App() {
@@ -32,7 +32,7 @@ function App() {
 
   // If not authenticated, show login screen
   if (!isAuthenticated) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    return <Auth onLoginSuccess={handleLoginSuccess} />;
   }
 
   return (
