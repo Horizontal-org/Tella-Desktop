@@ -6,7 +6,7 @@ import "errors"
 const (
 	KeyLength        = 32
 	SaltLength       = 32
-	Iterations       = 10000
+	Iterations       = 100000
 	TVaultHeaderSize = 256
 )
 
