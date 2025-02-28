@@ -9,5 +9,6 @@
   "author": {
     "name": "valbuenag",
     "email": "valbuena52@gmail.com"
-  }
+  },
+  "buildTags": "sqlite_unlock_notify sqlite_crypt sqlcipher"
 }

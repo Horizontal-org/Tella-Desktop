@@ -4,11 +4,12 @@ import (
 	"Tella-Desktop/backend/utils/authutils"
 	"database/sql"
 	"embed"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mutecomm/go-sqlcipher/v4"
 )
 
 //go:embed migrations/*.sql
@@ -19,17 +20,30 @@ type DB struct {
 }
 
 // Initialize creates a new database connection and runs migrations
-func Initialize(dbPath string) (*DB, error) {
+func Initialize(dbPath string, key []byte) (*DB, error) {
 	// Ensure directory exists
 	dbDir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dbDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create database directory: %v", err)
 	}
 
-	// Open database connection
-	db, err := sql.Open("sqlite3", dbPath)
+	// Convert the key to hex string
+	hexKey := hex.EncodeToString(key)
+
+	// Use the DSN format recommended by go-sqlcipher
+	connStr := fmt.Sprintf("%s?_pragma_key=x'%s'&_pragma_cipher_page_size=4096&_pragma_kdf_iter=64000&_pragma_cipher_hmac_algorithm=HMAC_SHA512&_pragma_cipher_compatibility=3", dbPath, hexKey)
+
+	db, err := sql.Open("sqlite3", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %v", err)
+	}
+
+	// Verify we can read the database
+	var count int
+	err = db.QueryRow("SELECT count(*) FROM sqlite_master").Scan(&count)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to verify database decryption: %v", err)
 	}
 
 	// Run migrations

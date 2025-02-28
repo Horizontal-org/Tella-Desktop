@@ -9,6 +9,7 @@ import (
 	"Tella-Desktop/backend/core/modules/registration"
 	"Tella-Desktop/backend/core/modules/server"
 	"Tella-Desktop/backend/core/modules/transfer"
+	"Tella-Desktop/backend/utils/authutils"
 	"Tella-Desktop/backend/utils/network"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -39,7 +40,18 @@ func (a *App) IsFirstTimeSetup() bool {
 }
 
 func (a *App) CreatePassword(password string) error {
-	return a.authService.CreatePassword(password)
+	err := a.authService.CreatePassword((password))
+	if err != nil {
+		return err
+	}
+
+	if err := a.initializeDatabase(); err != nil {
+		runtime.LogError(a.ctx, "Failed to initialize database during setup: "+err.Error())
+		return err
+	}
+
+	runtime.LogInfo(a.ctx, "Database created and encrypted successfully")
+	return nil
 }
 
 func (a *App) VerifyPassword(password string) error {
@@ -62,19 +74,6 @@ func (a *App) Startup(ctx context.Context) {
 		return
 	}
 
-	// Initialize database
-	if !a.authService.IsFirstTimeSetup() {
-		// Try to initialize database
-		// we'll change this later to decrypt the database first
-		dbPath := database.GetDatabasePath()
-		db, err := database.Initialize(dbPath)
-		if err != nil {
-			runtime.LogFatalf(ctx, "Failed to initialize database: %v", err)
-			return
-		}
-		a.db = db
-	}
-
 	a.registrationService = registration.NewService(a.ctx)
 	a.transferService = transfer.NewService(a.ctx)
 
@@ -84,6 +83,26 @@ func (a *App) Startup(ctx context.Context) {
 		a.transferService,
 	)
 	a.clientService = client.NewService(a.ctx)
+}
+
+// Helper method to initialize the database with encryption
+func (a *App) initializeDatabase() error {
+	// Get database key from auth service
+	dbKey, err := a.authService.GetDBKey()
+	if err != nil {
+		return err
+	}
+
+	// Initialize database with encryption key
+	dbPath := authutils.GetDatabasePath()
+	db, err := database.Initialize(dbPath, dbKey)
+	if err != nil {
+		return err
+	}
+
+	a.db = db
+	runtime.LogInfo(a.ctx, "Database initialized successfully with encryption")
+	return nil
 }
 
 func (a *App) Shutdown(ctx context.Context) {
