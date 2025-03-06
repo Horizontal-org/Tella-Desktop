@@ -1,9 +1,8 @@
 package transfer
 
-import "io"
-
 type Service interface {
-    PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadResponse, error)
-    SaveFile(sessionId, fileId, token, fileName string, reader io.Reader) error
-    ValidateTransfer(sessionId, fileId, token string) bool
+	PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadResponse, error)
+	ValidateTransfer(sessionId, fileId, token string) bool
+	CompleteTransfer(sessionId, fileId string) error
+	GetTransferDetails(sessionId, fileId string) (*Transfer, error)
 }

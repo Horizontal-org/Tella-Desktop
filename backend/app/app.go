@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"database/sql"
 
 	"Tella-Desktop/backend/core/database"
 	"Tella-Desktop/backend/core/modules/auth"
 	"Tella-Desktop/backend/core/modules/client"
+	"Tella-Desktop/backend/core/modules/filestore"
 	"Tella-Desktop/backend/core/modules/registration"
 	"Tella-Desktop/backend/core/modules/server"
 	"Tella-Desktop/backend/core/modules/transfer"
@@ -24,6 +26,8 @@ type App struct {
 	transferService     transfer.Service
 	serverService       server.Service
 	clientService       client.Service
+	fileService         filestore.Service
+	defaultFolderID     int64
 }
 
 func (a *App) RegisterWithDevice(ip string, port int) error {
@@ -89,12 +93,6 @@ func (a *App) Startup(ctx context.Context) {
 
 	a.registrationService = registration.NewService(a.ctx)
 	a.transferService = transfer.NewService(a.ctx)
-
-	a.serverService = server.NewService(
-		a.ctx,
-		a.registrationService,
-		a.transferService,
-	)
 	a.clientService = client.NewService(a.ctx)
 }
 
@@ -115,7 +113,50 @@ func (a *App) initializeDatabase() error {
 
 	a.db = db
 	runtime.LogInfo(a.ctx, "Database initialized successfully with encryption")
+
+	// Create default folder for uploads if it doesn't exist
+	defaultFolder, err := a.ensureDefaultFolder(db.DB)
+	if err != nil {
+		runtime.LogError(a.ctx, "Failed to create default folder: "+err.Error())
+		return err
+	}
+	a.defaultFolderID = defaultFolder
+
+	// Initialize filestore service with database and encryption key
+	a.fileService = filestore.NewService(a.ctx, db.DB, dbKey)
+	runtime.LogInfo(a.ctx, "File storage service initialized")
+
+	// Re-initialize transfer and server services with filestore service
+	a.serverService = server.NewService(
+		a.ctx,
+		a.registrationService,
+		a.transferService,
+		a.fileService,
+		a.defaultFolderID,
+	)
 	return nil
+}
+
+// Create the default folder for storing files if it doesn't exist
+func (a *App) ensureDefaultFolder(db *sql.DB) (int64, error) {
+	// Check if default folder exists
+	var folderId int64
+	err := db.QueryRow("SELECT id FROM folders WHERE name = 'Received Files' AND parent_id IS NULL").Scan(&folderId)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Create default folder
+			result, err := db.Exec(
+				"INSERT INTO folders (name, parent_id, created_at, updated_at) VALUES (?, NULL, datetime('now'), datetime('now'))",
+				"Received Files",
+			)
+			if err != nil {
+				return 0, err
+			}
+			return result.LastInsertId()
+		}
+		return 0, err
+	}
+	return folderId, nil
 }
 
 func (a *App) Shutdown(ctx context.Context) {
@@ -139,4 +180,9 @@ func (a *App) IsServerRunning() bool {
 // network functions
 func (a *App) GetLocalIPs() ([]string, error) {
 	return network.GetLocalIPs()
+}
+
+// Filestore functions
+func (a *App) GetStoredFiles() ([]filestore.FileInfo, error) {
+	return a.fileService.GetStoredFiles()
 }

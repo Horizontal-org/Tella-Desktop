@@ -10,6 +10,10 @@ export function GetLocalIPs() {
   return window['go']['app']['App']['GetLocalIPs']();
 }
 
+export function GetStoredFiles() {
+  return window['go']['app']['App']['GetStoredFiles']();
+}
+
 export function IsFirstTimeSetup() {
   return window['go']['app']['App']['IsFirstTimeSetup']();
 }
