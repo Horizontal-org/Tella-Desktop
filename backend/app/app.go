@@ -43,7 +43,7 @@ func (a *App) CreatePassword(password string) error {
 }
 
 func (a *App) VerifyPassword(password string) error {
-	_, err := a.authService.VerifyPassword(password)
+	err := a.authService.DecryptDatabaseKey(password)
 	return err
 }
 

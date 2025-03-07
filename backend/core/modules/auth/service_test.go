@@ -64,7 +64,7 @@ func (s *testService) CreatePassword(password string) error {
 	return nil
 }
 
-func (s *testService) VerifyPassword(password string) ([]byte, error) {
+func (s *testService) DecryptDatabaseKey(password string) error {
 	if password == "secure-password-1234" {
 		s.isUnlocked = true
 		if s.dbKey == nil {
@@ -73,10 +73,10 @@ func (s *testService) VerifyPassword(password string) ([]byte, error) {
 				s.dbKey[i] = byte(i % 256)
 			}
 		}
-		return s.dbKey, nil
+		return nil
 	}
 
-	return nil, constants.ErrInvalidPassword
+	return constants.ErrInvalidPassword
 }
 
 func (s *testService) GetDBKey() ([]byte, error) {
@@ -205,7 +205,7 @@ func TestCreatePassword(t *testing.T) {
 	}
 }
 
-func TestVerifyPassword(t *testing.T) {
+func TestDecryptDatabaseKey(t *testing.T) {
 	service, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
@@ -244,7 +244,7 @@ func TestVerifyPassword(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			dbKey, err := service.VerifyPassword(tc.password)
+			err := service.DecryptDatabaseKey(tc.password)
 
 			// Check error expectation
 			if tc.wantErr {
@@ -253,12 +253,20 @@ func TestVerifyPassword(t *testing.T) {
 				} else if tc.errType != nil && err != tc.errType {
 					t.Errorf("Expected error %v, got %v", tc.errType, err)
 				}
+				dbKey, keyErr := service.GetDBKey()
+				if keyErr == nil {
+					t.Errorf("Expected error when getting DB key after failed authentication")
+				}
 				if dbKey != nil {
-					t.Errorf("Expected nil dbKey for invalid password, got %v", dbKey)
+					t.Errorf("Expected nil dbKey for invalid password, got non-nil value")
 				}
 			} else {
 				if err != nil {
 					t.Errorf("Unexpected error: %v", err)
+				}
+				dbKey, keyErr := service.GetDBKey()
+				if keyErr != nil {
+					t.Errorf("Failed to get DB key after successful authentication: %v", keyErr)
 				}
 				if dbKey == nil {
 					t.Errorf("Expected valid dbKey, got nil")
@@ -308,7 +316,7 @@ func TestGetDBKey(t *testing.T) {
 	}
 
 	// Verify password to unlock
-	_, err = service.VerifyPassword(password)
+	err = service.DecryptDatabaseKey(password)
 	if err != nil {
 		t.Fatalf("Failed to verify password: %v", err)
 	}

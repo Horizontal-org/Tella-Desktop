@@ -12,8 +12,8 @@ type Service interface {
 	// CreatePassword sets up encryption with a new password
 	CreatePassword(password string) error
 
-	// VerifyPassword validates the password and returns database key if valid
-	VerifyPassword(password string) ([]byte, error)
+	// DecryptDatabaseKey decrypts the database key with the given password
+	DecryptDatabaseKey(password string) error
 
 	// GetDBKey returns the current database key (only if unlocked)
 	GetDBKey() ([]byte, error)

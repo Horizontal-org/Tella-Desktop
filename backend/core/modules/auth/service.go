@@ -97,13 +97,13 @@ func (s *service) CreatePassword(password string) error {
 	return nil
 }
 
-func (s *service) VerifyPassword(password string) ([]byte, error) {
+func (s *service) DecryptDatabaseKey(password string) error {
 	runtime.LogInfo(s.ctx, "Verifying password")
 
 	// Read the salt and encrypted database key from tvault
 	salt, encryptedDBKey, err := authutils.ReadTVaultHeader()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Derive key from password and stored salt
@@ -113,7 +113,7 @@ func (s *service) VerifyPassword(password string) ([]byte, error) {
 	dbKey, err := authutils.DecryptData(encryptedDBKey, derivedKey)
 	if err != nil {
 		runtime.LogInfo(s.ctx, "Invalid password")
-		return nil, constants.ErrInvalidPassword
+		return constants.ErrInvalidPassword
 	}
 
 	// Store database key in memory
@@ -121,7 +121,7 @@ func (s *service) VerifyPassword(password string) ([]byte, error) {
 	s.isUnlocked = true
 
 	runtime.LogInfo(s.ctx, "Password verified successfully")
-	return dbKey, nil
+	return nil
 }
 
 func (s *service) GetDBKey() ([]byte, error) {
