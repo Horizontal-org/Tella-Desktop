@@ -3,70 +3,63 @@ package authutils
 import (
 	"os"
 	"path/filepath"
-	"runtime"
+
+	"github.com/adrg/xdg"
 )
-
-var getOS = func() string {
-	return runtime.GOOS
-}
-
-var getUserHomeDir = os.UserHomeDir
 
 // Directory constants
 const (
-	TellaVaultDir  = ".TellaVault"
-	TellaPublicDir = "TellaPublic"
-	TVaultFile     = ".tvault"
-	TellaDBFile    = ".tella.db"
-	TempDir        = "temp"
+	TellaAppName = "Tella"
+	TVaultFile   = ".tvault"
+	TellaDBFile  = ".tella.db"
+	TempDir      = "temp"
 )
 
-// getBasePath returns the appropriate base directory based on OS
-func getBasePath() (string, error) {
-	homeDir, err := getUserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	// For Windows and macOS, use Documents folder
-	// For Linux and others, use home directory directly
-	if getOS() == "windows" || getOS() == "darwin" {
-		return filepath.Join(homeDir, "Documents"), nil
-	}
-
-	return homeDir, nil
+// Create wrappers around XDG functions that we can mock in tests
+var xdgDataFile = func(relPath string) (string, error) {
+	return xdg.DataFile(relPath)
 }
 
-// buildPath constructs a path with fallback option if there's an error
-func buildPath(components ...string) string {
-	basePath, err := getBasePath()
-	if err != nil {
-		// Determine the fallback path based on the first component
-		if components[0] == TellaVaultDir {
-			return filepath.Join(".", TellaVaultDir, components[1])
-		}
-		// Create a new slice with "." as the first element
-		fallbackPath := make([]string, len(components)+1)
-		fallbackPath[0] = "."
-		copy(fallbackPath[1:], components)
-		return filepath.Join(fallbackPath...)
-	}
+var xdgCacheFile = func(relPath string) (string, error) {
+	return xdg.CacheFile(relPath)
+}
 
-	// Create a new slice with basePath as the first element
-	fullPath := make([]string, len(components)+1)
-	fullPath[0] = basePath
-	copy(fullPath[1:], components)
-	return filepath.Join(fullPath...)
+var xdgConfigFile = func(relPath string) (string, error) {
+	return xdg.ConfigFile(relPath)
 }
 
 func GetTVaultPath() string {
-	return buildPath(TellaVaultDir, TVaultFile)
+	path, err := xdgDataFile(filepath.Join(TellaAppName, TVaultFile))
+	if err != nil {
+		// Fallback to local directory
+		return filepath.Join(".", TVaultFile)
+	}
+	return path
 }
 
 func GetDatabasePath() string {
-	return buildPath(TellaVaultDir, TellaDBFile)
+	path, err := xdgDataFile(filepath.Join(TellaAppName, TellaDBFile))
+	if err != nil {
+		// Fallback to local directory
+		return filepath.Join(".", TellaDBFile)
+	}
+	return path
 }
 
 func GetTempDir() string {
-	return buildPath(TellaPublicDir, TempDir)
+	path, err := xdgCacheFile(filepath.Join(TellaAppName, TempDir, "placeholder"))
+	if err != nil {
+		// Fallback to local directory
+		return filepath.Join(".", TempDir)
+	}
+
+	// Return just the directory part
+	dir := filepath.Dir(path)
+
+	// Ensure the directory exists
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return filepath.Join(".", TempDir)
+	}
+
+	return dir
 }

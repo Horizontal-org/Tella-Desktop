@@ -5,6 +5,7 @@ go 1.21
 toolchain go1.23.3
 
 require (
+	github.com/adrg/xdg v0.5.3
 	github.com/google/uuid v1.3.0
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/wailsapp/wails/v2 v2.9.2
@@ -35,7 +36,7 @@ require (
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1 // indirect
 	golang.org/x/net v0.25.0 // indirect
-	golang.org/x/sys v0.20.0 // indirect
+	golang.org/x/sys v0.26.0 // indirect
 	golang.org/x/text v0.15.0 // indirect
 )
 
