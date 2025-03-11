@@ -6,8 +6,8 @@ import (
 	"os"
 )
 
-// TVault helper methods -> move this to utils
-func WriteTVaultHeader(salt, encryptDBKey []byte) error {
+// Initialize the TVault file with the salt and encrypted db key
+func InitializeTVaultHeader(salt, encryptDBKey []byte) error {
 	//Create tvault file if it doesn't exist
 	file, err := os.Create(GetTVaultPath())
 	if err != nil {

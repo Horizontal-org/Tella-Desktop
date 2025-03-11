@@ -85,7 +85,7 @@ func (s *service) CreatePassword(password string) error {
 	}
 
 	//create and write tvault header
-	if err := authutils.WriteTVaultHeader(salt, encryptedDBKey); err != nil {
+	if err := authutils.InitializeTVaultHeader(salt, encryptedDBKey); err != nil {
 		return fmt.Errorf("failed to write tvault header: %w", err)
 	}
 
