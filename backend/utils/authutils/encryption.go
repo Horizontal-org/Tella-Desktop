@@ -3,9 +3,7 @@ package authutils
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
 	"errors"
-	"io"
 )
 
 func EncryptData(data, key []byte) ([]byte, error) {
@@ -14,19 +12,12 @@ func EncryptData(data, key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// Create GCM mode
-	gcm, err := cipher.NewGCM(block)
+	gcm, err := cipher.NewGCMWithRandomNonce(block)
 	if err != nil {
 		return nil, err
 	}
 
-	//create nonce
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, err
-	}
-
-	ciphertext := gcm.Seal(nonce, nonce, data, nil)
+	ciphertext := gcm.Seal(nil, nil, data, nil)
 	return ciphertext, nil
 
 }
@@ -37,21 +28,17 @@ func DecryptData(ciphertext, key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	//create GCM mode
-	gcm, err := cipher.NewGCM(block)
+	gcm, err := cipher.NewGCMWithRandomNonce(block)
 	if err != nil {
 		return nil, err
 	}
 
-	//extract nonce
 	if len(ciphertext) < gcm.NonceSize() {
 		return nil, errors.New("ciphertext too short")
 	}
 
-	nonce, ciphertext := ciphertext[:gcm.NonceSize()], ciphertext[gcm.NonceSize():]
-
 	//decrypt
-	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	plaintext, err := gcm.Open(nil, nil, ciphertext, nil)
 	if err != nil {
 		return nil, err
 	}
