@@ -9,42 +9,36 @@ import (
 
 // Initialize the TVault file with the salt and encrypted db key
 func InitializeTVaultHeader(salt, encryptDBKey []byte) error {
-	versionSize := 1
-	saltSize := len(salt)
-	keySize := len(encryptDBKey)
-
-	// Calculate total header size
-	headerSize := versionSize +
-		constants.LengthFieldSize + saltSize +
-		constants.LengthFieldSize + keySize
-
-	if headerSize > constants.TVaultHeaderSize {
-		return constants.ErrHeaderTooLarge
-	}
-
 	file, err := os.Create(GetTVaultPath())
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	// write version
-	if _, err := file.Write([]byte{constants.CurrentTVaultVersion}); err != nil {
-		return err
-	}
+	actualBytesWritten := 0
 
-	// write salt length and salt
-	if err := writeLengthAndData(file, salt); err != nil {
+	n, err := file.Write([]byte{constants.CurrentTVaultVersion})
+	if err != nil {
 		return err
 	}
+	actualBytesWritten += n
 
-	// write encrypted db key length and key
-	if err := writeLengthAndData(file, encryptDBKey); err != nil {
+	// Write salt
+	n, err = writeLengthAndData(file, salt)
+	if err != nil {
 		return err
 	}
+	actualBytesWritten += n
+
+	// Write encrypted key
+	n, err = writeLengthAndData(file, encryptDBKey)
+	if err != nil {
+		return err
+	}
+	actualBytesWritten += n
 
 	// add padding to reach tvault header size
-	paddingNeeded := constants.TVaultHeaderSize - headerSize
+	paddingNeeded := constants.TVaultHeaderSize - actualBytesWritten
 	if paddingNeeded > 0 {
 		padding := make([]byte, paddingNeeded)
 		if _, err := file.Write(padding); err != nil {
@@ -53,21 +47,26 @@ func InitializeTVaultHeader(salt, encryptDBKey []byte) error {
 	}
 
 	return nil
-
 }
 
-func writeLengthAndData(file *os.File, data []byte) error {
+func writeLengthAndData(file *os.File, data []byte) (int, error) {
+	totalBytesWritten := 0
+
 	lenBuf := make([]byte, constants.LengthFieldSize)
 	binary.LittleEndian.PutUint32(lenBuf, uint32(len(data)))
-	if _, err := file.Write(lenBuf); err != nil {
-		return err
-	}
 
-	if _, err := file.Write(data); err != nil {
-		return err
+	n, err := file.Write(lenBuf)
+	if err != nil {
+		return totalBytesWritten, err
 	}
+	totalBytesWritten += n
+	n, err = file.Write(data)
+	if err != nil {
+		return totalBytesWritten, err
+	}
+	totalBytesWritten += n
 
-	return nil
+	return totalBytesWritten, nil
 }
 
 func ReadTVaultHeader() ([]byte, []byte, error) {
