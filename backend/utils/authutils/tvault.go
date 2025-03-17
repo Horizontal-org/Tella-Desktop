@@ -29,7 +29,7 @@ func InitializeTVaultHeader(salt, encryptDBKey []byte) error {
 	defer file.Close()
 
 	// write version
-	if _, err := file.Write([]byte{1}); err != nil {
+	if _, err := file.Write([]byte{constants.CurrentTVaultVersion}); err != nil {
 		return err
 	}
 
@@ -85,6 +85,11 @@ func ReadTVaultHeader() ([]byte, []byte, error) {
 	versionByte := make([]byte, 1)
 	if _, err := file.Read(versionByte); err != nil {
 		return nil, nil, constants.ErrCorruptedTVault
+	}
+
+	version := int(versionByte[0])
+	if version <= 0 || version > constants.CurrentTVaultVersion {
+		return nil, nil, constants.ErrUnsupportedVersion
 	}
 
 	// Read salt
