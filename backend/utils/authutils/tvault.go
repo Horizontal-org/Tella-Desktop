@@ -2,40 +2,69 @@ package authutils
 
 import (
 	"Tella-Desktop/backend/utils/constants"
+	"encoding/binary"
 	"io"
 	"os"
 )
 
 // Initialize the TVault file with the salt and encrypted db key
 func InitializeTVaultHeader(salt, encryptDBKey []byte) error {
-	//Create tvault file if it doesn't exist
+	versionSize := 1
+	saltSize := len(salt)
+	keySize := len(encryptDBKey)
+
+	// Calculate total header size
+	headerSize := versionSize +
+		constants.LengthFieldSize + saltSize +
+		constants.LengthFieldSize + keySize
+
+	if headerSize > constants.TVaultHeaderSize {
+		return constants.ErrHeaderTooLarge
+	}
+
 	file, err := os.Create(GetTVaultPath())
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	// Write version
+	// write version
 	if _, err := file.Write([]byte{1}); err != nil {
 		return err
 	}
 
-	// write salt
-	if _, err := file.Write(salt); err != nil {
+	// write salt length and salt
+	if err := writeLengthAndData(file, salt); err != nil {
 		return err
 	}
 
-	// write encrypted db key
-	if _, err := file.Write(encryptDBKey); err != nil {
+	// write encrypted db key length and key
+	if err := writeLengthAndData(file, encryptDBKey); err != nil {
 		return err
 	}
 
-	headerSize := 1 + len(salt) + len(encryptDBKey)
-	if headerSize < constants.TVaultHeaderSize {
-		padding := make([]byte, constants.TVaultHeaderSize-headerSize)
+	// add padding to reach tvault header size
+	paddingNeeded := constants.TVaultHeaderSize - headerSize
+	if paddingNeeded > 0 {
+		padding := make([]byte, paddingNeeded)
 		if _, err := file.Write(padding); err != nil {
 			return err
 		}
+	}
+
+	return nil
+
+}
+
+func writeLengthAndData(file *os.File, data []byte) error {
+	lenBuf := make([]byte, constants.LengthFieldSize)
+	binary.LittleEndian.PutUint32(lenBuf, uint32(len(data)))
+	if _, err := file.Write(lenBuf); err != nil {
+		return err
+	}
+
+	if _, err := file.Write(data); err != nil {
+		return err
 	}
 
 	return nil
@@ -59,31 +88,32 @@ func ReadTVaultHeader() ([]byte, []byte, error) {
 	}
 
 	// Read salt
-	salt := make([]byte, constants.SaltLength)
-	if _, err := file.Read(salt); err != nil {
+	salt, err := readLengthPrefixedData(file)
+	if err != nil {
 		return nil, nil, constants.ErrCorruptedTVault
 	}
 
 	// Read encrypted key
-	// We need to read until we hit the padding (zeros)
-	buffer := make([]byte, constants.TVaultHeaderSize-1-constants.SaltLength)
-	n, err := file.Read(buffer)
-	if err != nil && err != io.EOF {
+	encryptedKey, err := readLengthPrefixedData(file)
+	if err != nil {
 		return nil, nil, constants.ErrCorruptedTVault
 	}
 
-	// Find where the actual encrypted key ends (before padding)
-	encryptedKeyLength := n
-	for i := n - 1; i >= 0; i-- {
-		if buffer[i] != 0 {
-			encryptedKeyLength = i + 1
-			break
-		}
-	}
-
-	// Only return the non-padding part of the encrypted key
-	encryptedKey := buffer[:encryptedKeyLength]
-
 	return salt, encryptedKey, nil
 
+}
+
+func readLengthPrefixedData(file *os.File) ([]byte, error) {
+	lenBuf := make([]byte, constants.LengthFieldSize)
+	if _, err := io.ReadFull(file, lenBuf); err != nil {
+		return nil, err
+	}
+	dataLen := binary.LittleEndian.Uint32(lenBuf)
+
+	data := make([]byte, dataLen)
+	if _, err := io.ReadFull(file, data); err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }

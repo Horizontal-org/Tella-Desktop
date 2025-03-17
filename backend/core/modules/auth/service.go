@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -12,8 +11,8 @@ import (
 	"Tella-Desktop/backend/utils/authutils"
 	"Tella-Desktop/backend/utils/constants"
 
+	"github.com/matthewhartstonge/argon2"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
-	"golang.org/x/crypto/pbkdf2"
 )
 
 type service struct {
@@ -75,19 +74,25 @@ func (s *service) CreatePassword(password string) error {
 		return fmt.Errorf("failed to generate salt: %w", err)
 	}
 
-	//derive key from password and salt
-	derivedKey := pbkdf2.Key([]byte(password), salt, constants.Iterations, constants.KeyLength, sha256.New)
+	config := argon2.MemoryConstrainedDefaults()
 
-	//encrypt database key using derived key
-	encryptedDBKey, err := authutils.EncryptData(dbKey, derivedKey)
+	raw, err := config.HashRaw([]byte(password))
 	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	encryptedDBKey, err := authutils.EncryptData(dbKey, raw.Hash)
+	if err != nil {
+		argon2.SecureZeroMemory(raw.Hash)
 		return fmt.Errorf("failed to encrypt database key: %w", err)
 	}
 
-	//create and write tvault header
-	if err := authutils.InitializeTVaultHeader(salt, encryptedDBKey); err != nil {
-		return fmt.Errorf("failed to write tvault header: %w", err)
+	if err := authutils.InitializeTVaultHeader(raw.Salt, encryptedDBKey); err != nil {
+		argon2.SecureZeroMemory(raw.Hash)
+		return fmt.Errorf("failed to initialize tvault header: %w", err)
 	}
+
+	argon2.SecureZeroMemory(raw.Hash)
 
 	// Store database key in memory
 	s.databaseKey = dbKey
@@ -100,23 +105,27 @@ func (s *service) CreatePassword(password string) error {
 func (s *service) DecryptDatabaseKey(password string) error {
 	runtime.LogInfo(s.ctx, "Verifying password")
 
-	// Read the salt and encrypted database key from tvault
 	salt, encryptedDBKey, err := authutils.ReadTVaultHeader()
 	if err != nil {
 		return err
 	}
 
-	// Derive key from password and stored salt
-	derivedKey := pbkdf2.Key([]byte(password), salt, constants.Iterations, constants.KeyLength, sha256.New)
+	config := argon2.MemoryConstrainedDefaults()
 
-	// Decrypt database key
-	dbKey, err := authutils.DecryptData(encryptedDBKey, derivedKey)
+	raw, err := config.Hash([]byte(password), salt)
 	if err != nil {
+		return fmt.Errorf("failed to derive key: %w", err)
+	}
+
+	dbKey, err := authutils.DecryptData(encryptedDBKey, raw.Hash)
+	if err != nil {
+		argon2.SecureZeroMemory(raw.Hash)
 		runtime.LogInfo(s.ctx, "Invalid password")
 		return constants.ErrInvalidPassword
 	}
 
-	// Store database key in memory
+	argon2.SecureZeroMemory(raw.Hash)
+
 	s.databaseKey = dbKey
 	s.isUnlocked = true
 

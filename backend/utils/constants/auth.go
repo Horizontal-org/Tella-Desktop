@@ -4,9 +4,9 @@ import "errors"
 
 // Authentication constants
 const (
+	LengthFieldSize  = 4
 	KeyLength        = 32
 	SaltLength       = 32
-	Iterations       = 100000
 	TVaultHeaderSize = 256
 )
 
@@ -17,4 +17,5 @@ var (
 	ErrDatabaseNotFound = errors.New("database file not found")
 	ErrCorruptedTVault  = errors.New("corrupted tvault header")
 	ErrPasswordTooShort = errors.New("password must be at least 6 characters")
+	ErrHeaderTooLarge   = errors.New("tvault header too large")
 )
