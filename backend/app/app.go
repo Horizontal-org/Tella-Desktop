@@ -56,7 +56,20 @@ func (a *App) CreatePassword(password string) error {
 
 func (a *App) VerifyPassword(password string) error {
 	err := a.authService.DecryptDatabaseKey(password)
-	return err
+
+	if err != nil {
+		return err
+	}
+
+	// Initialize database after successful password verification
+	if a.db == nil {
+		if err := a.initializeDatabase(); err != nil {
+			runtime.LogError(a.ctx, "Failed to initialize database after login: "+err.Error())
+			return err
+		}
+	}
+
+	return nil
 }
 
 // NewApp creates a new App application struct
