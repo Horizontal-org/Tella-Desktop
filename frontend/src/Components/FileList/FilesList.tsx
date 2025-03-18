@@ -76,6 +76,13 @@ export function FilesList() {
   if (error) {
     return <FilesContainer>{error}</FilesContainer>;
   }
+  
+  if(!files){
+    return <FilesContainer>
+    <RefreshButton onClick={fetchFiles}>Refresh Files</RefreshButton>
+      No files found. Receive files to see them listed here.
+    </FilesContainer>;
+  }
 
   return (
     <FilesContainer>
