@@ -8,4 +8,7 @@ type Service interface {
 
 	// GetStoredFiles returns a list of stored files
 	GetStoredFiles() ([]FileInfo, error)
+
+	// OpenFileByID opens a file by its ID
+	OpenFileByID(id int64) error
 }

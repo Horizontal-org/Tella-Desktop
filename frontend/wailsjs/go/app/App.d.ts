@@ -13,6 +13,8 @@ export function IsFirstTimeSetup():Promise<boolean>;
 
 export function IsServerRunning():Promise<boolean>;
 
+export function OpenFileByID(arg1:number):Promise<void>;
+
 export function RegisterWithDevice(arg1:string,arg2:number):Promise<void>;
 
 export function SendTestFile(arg1:string,arg2:number,arg3:string):Promise<void>;

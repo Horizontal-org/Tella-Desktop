@@ -186,3 +186,7 @@ func (a *App) GetLocalIPs() ([]string, error) {
 func (a *App) GetStoredFiles() ([]filestore.FileInfo, error) {
 	return a.fileService.GetStoredFiles()
 }
+
+func (a *App) OpenFileByID(id int64) error {
+	return a.fileService.OpenFileByID(id)
+}

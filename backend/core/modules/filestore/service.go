@@ -8,23 +8,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
+	goruntime "runtime"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
-
-type FileMetadata struct {
-	ID        int64
-	UUID      string
-	Name      string
-	Size      int64
-	MimeType  string
-	FolderID  int64
-	Offset    int64
-	Length    int64
-	CreatedAt time.Time
-}
 
 type service struct {
 	ctx        context.Context
@@ -120,7 +111,7 @@ func (s *service) StoreFile(folderID int64, fileName string, mimeType string, re
 
 func (s *service) GetStoredFiles() ([]FileInfo, error) {
 	rows, err := s.db.Query(`
-		SELECT name, mime_type, created_at 
+		SELECT id, name, mime_type, created_at 
 		FROM files 
 		WHERE is_deleted = 0 
 		ORDER BY created_at DESC
@@ -133,7 +124,7 @@ func (s *service) GetStoredFiles() ([]FileInfo, error) {
 	var files []FileInfo
 	for rows.Next() {
 		var file FileInfo
-		if err := rows.Scan(&file.Name, &file.MimeType, &file.Timestamp); err != nil {
+		if err := rows.Scan(&file.ID, &file.Name, &file.MimeType, &file.Timestamp); err != nil {
 			return nil, err
 		}
 		files = append(files, file)
@@ -144,4 +135,137 @@ func (s *service) GetStoredFiles() ([]FileInfo, error) {
 	}
 
 	return files, nil
+}
+
+func (s *service) OpenFileByID(id int64) error {
+	metadata, err := s.getFileMetadataByID(id)
+	if err != nil {
+		return err
+	}
+
+	runtime.LogInfo(s.ctx, fmt.Sprintf("Opening file: %s (ID: %d)", metadata.Name, id))
+
+	tvault, err := os.Open(s.tvaultPath)
+	if err != nil {
+		return fmt.Errorf("failed to open TVault: %w", err)
+	}
+	defer tvault.Close()
+
+	encryptedData := make([]byte, metadata.Length)
+	_, err = tvault.ReadAt(encryptedData, metadata.Offset)
+	if err != nil {
+		return fmt.Errorf("failed to read file from TVault: %w", err)
+	}
+
+	fileKey := filestoreutils.GenerateFileKey(metadata.UUID, s.dbKey)
+	decryptedData, err := authutils.DecryptData(encryptedData, fileKey)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt file: %w", err)
+	}
+
+	tempDir := authutils.GetTempDir()
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+
+	tempFilePath := createUniqueFilename(tempDir, metadata.Name)
+	tempFile, err := os.Create(tempFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+
+	_, err = tempFile.Write(decryptedData)
+	if err != nil {
+		tempFile.Close()
+		return fmt.Errorf("failed to write to temp file: %w", err)
+	}
+	tempFile.Close()
+
+	err = os.Chmod(tempFilePath, 0644)
+	if err != nil {
+		runtime.LogWarning(s.ctx, fmt.Sprintf("Failed to set file permissions: %v", err))
+	}
+
+	runtime.LogInfo(s.ctx, fmt.Sprintf("File decrypted successfully to: %s", tempFilePath))
+
+	if err := s.recordTempFile(id, tempFilePath); err != nil {
+		runtime.LogWarning(s.ctx, fmt.Sprintf("Failed to record temp file in database: %v", err))
+	}
+
+	err = openFileWithDefaultApp(tempFilePath)
+	if err != nil {
+		runtime.LogWarning(s.ctx, fmt.Sprintf("Failed to open file automatically: %v", err))
+		runtime.LogInfo(s.ctx, fmt.Sprintf("File decrypted and saved to: %s", tempFilePath))
+		return nil
+	}
+
+	runtime.LogInfo(s.ctx, fmt.Sprintf("File decrypted and opened: %s", metadata.Name))
+	return nil
+}
+
+func openFileWithDefaultApp(filePath string) error {
+	var cmd *exec.Cmd
+
+	switch goruntime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", filePath)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", "", filePath)
+	case "linux":
+		cmd = exec.Command("xdg-open", filePath)
+	default:
+		return fmt.Errorf("unsupported operating system")
+	}
+
+	return cmd.Start()
+}
+
+func (s *service) getFileMetadataByID(id int64) (*FileMetadata, error) {
+	var metadata FileMetadata
+
+	err := s.db.QueryRow(`
+		SELECT uuid, name, mime_type, offset, length
+		FROM files
+		WHERE id = ? AND is_deleted = 0
+	`, id).Scan(&metadata.UUID, &metadata.Name, &metadata.MimeType, &metadata.Offset, &metadata.Length)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("file not found with ID: %d", id)
+		}
+		return nil, fmt.Errorf("failed to fetch file metadata: %w", err)
+	}
+
+	return &metadata, nil
+}
+
+func (s *service) recordTempFile(fileID int64, tempPath string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO temp_files (file_id, temp_path, created_at)
+		VALUES (?, ?, datetime('now'))
+	`, fileID, tempPath)
+
+	return err
+}
+
+func createUniqueFilename(dir, fileName string) string {
+	originalPath := filepath.Join(dir, fileName)
+	if _, err := os.Stat(originalPath); os.IsNotExist(err) {
+		return originalPath
+	}
+
+	ext := filepath.Ext(fileName)
+	baseName := fileName[:len(fileName)-len(ext)]
+
+	counter := 1
+	for {
+		newName := fmt.Sprintf("%s-%d%s", baseName, counter, ext)
+		newPath := filepath.Join(dir, newName)
+
+		if _, err := os.Stat(newPath); os.IsNotExist(err) {
+			return newPath
+		}
+
+		counter++
+	}
 }

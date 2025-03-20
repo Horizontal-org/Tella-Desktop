@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { GetStoredFiles } from '../../../wailsjs/go/app/App';
+import { GetStoredFiles, OpenFileByID } from '../../../wailsjs/go/app/App';
 import styled from 'styled-components';
 
 // Define the FileInfo type to match the struct in Go
 interface FileInfo {
+  id: number;
   name: string;
   mimeType: string;
   timestamp: string;
@@ -102,7 +103,7 @@ export function FilesList() {
           </thead>
           <tbody>
             {files.map((file, index) => (
-              <tr key={index}>
+              <tr key={index} onClick={() => OpenFileByID(file.id)}>
                 <TableCell>{file.name}</TableCell>
                 <TableCell>{getFriendlyMimeType(file.mimeType)}</TableCell>
                 <TableCell>{formatTimestamp(file.timestamp)}</TableCell>

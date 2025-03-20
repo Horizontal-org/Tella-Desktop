@@ -22,6 +22,10 @@ export function IsServerRunning() {
   return window['go']['app']['App']['IsServerRunning']();
 }
 
+export function OpenFileByID(arg1) {
+  return window['go']['app']['App']['OpenFileByID'](arg1);
+}
+
 export function RegisterWithDevice(arg1, arg2) {
   return window['go']['app']['App']['RegisterWithDevice'](arg1, arg2);
 }
