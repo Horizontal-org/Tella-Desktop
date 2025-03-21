@@ -1,28 +1,56 @@
 package registration
 
 import (
-    "context"
-    "github.com/wailsapp/wails/v2/pkg/runtime"
+	"context"
+	"errors"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type service struct {
-    ctx     context.Context
-    peers   map[string]*Device
+	ctx         context.Context
+	sessions    map[string]*Session
+	pinCode     string
+	rateLimiter map[string]int
+}
+
+type Session struct {
+	ID        string
+	Nonce     string
+	CreatedAt time.Time
 }
 
 func NewService(ctx context.Context) Service {
-    return &service{
-        ctx:     ctx,
-        peers:   make(map[string]*Device),
-    }
+	return &service{
+		ctx:         ctx,
+		sessions:    make(map[string]*Session),
+		rateLimiter: make(map[string]int),
+	}
 }
 
-func (s *service) Register(device *Device) error {
-    s.peers[device.Fingerprint] = device
-    
-    // Notify UI about new device registration
-    deviceInfo := device.Alias + " (" + device.DeviceModel + ")"
-    runtime.EventsEmit(s.ctx, "device-registered", deviceInfo)
-    
-    return nil
+func (s *service) CreateSession(pin string, nonce string) (string, error) {
+	if s.rateLimiter[nonce] >= 3 { // check this with the team
+		return "", errors.New("too many invalid attempts")
+	}
+
+	if pin != s.pinCode {
+		s.rateLimiter[nonce]++
+		return "", errors.New("Invalid pin")
+	}
+
+	sessionID := uuid.New().String()
+	s.sessions[sessionID] = &Session{
+		ID:        sessionID,
+		Nonce:     nonce,
+		CreatedAt: time.Now(),
+	}
+
+	delete(s.rateLimiter, nonce) // if pin is success we delete the rate limiter
+
+	return sessionID, nil
+}
+
+func (s *service) SetPINCode(pinCode string) {
+	s.pinCode = pinCode
 }

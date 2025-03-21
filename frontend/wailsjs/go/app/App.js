@@ -10,6 +10,10 @@ export function GetLocalIPs() {
   return window['go']['app']['App']['GetLocalIPs']();
 }
 
+export function GetServerPIN() {
+  return window['go']['app']['App']['GetServerPIN']();
+}
+
 export function GetStoredFiles() {
   return window['go']['app']['App']['GetStoredFiles']();
 }
@@ -26,8 +30,8 @@ export function OpenFileByID(arg1) {
   return window['go']['app']['App']['OpenFileByID'](arg1);
 }
 
-export function RegisterWithDevice(arg1, arg2) {
-  return window['go']['app']['App']['RegisterWithDevice'](arg1, arg2);
+export function RegisterWithDevice(arg1, arg2, arg3) {
+  return window['go']['app']['App']['RegisterWithDevice'](arg1, arg2, arg3);
 }
 
 export function SendTestFile(arg1, arg2, arg3) {

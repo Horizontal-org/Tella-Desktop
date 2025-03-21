@@ -6,4 +6,5 @@ type Service interface {
 	Start(port int) error
 	Stop(ctx context.Context) error
 	IsRunning() bool
+	GetPIN() string
 }

@@ -8,14 +8,14 @@ h1 {
     font-size: 2.5rem;
     font-weight: bold;
     margin-bottom: 1rem;
-    color: #ffffff;
+    color: #404040;
 }
 
 h2 {
     font-size: 1.8rem;
     font-weight: bold;
     margin-bottom: 1.5rem;
-    color: #ffffff;
+    color: #404040;
 }
 
 .card {
@@ -61,7 +61,7 @@ h2 {
     transition: background-color 0.2s;
     border: none;
     outline: none;
-    color: #ffffff;
+    color: #404040;
 }
 
 .button:disabled {

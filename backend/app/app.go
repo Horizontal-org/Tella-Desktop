@@ -30,8 +30,8 @@ type App struct {
 	defaultFolderID     int64
 }
 
-func (a *App) RegisterWithDevice(ip string, port int) error {
-	return a.clientService.RegisterWithDevice(ip, port)
+func (a *App) RegisterWithDevice(ip string, port int, pin string) error {
+	return a.clientService.RegisterWithDevice(ip, port, pin)
 }
 
 func (a *App) SendTestFile(ip string, port int, pin string) error {
@@ -175,6 +175,13 @@ func (a *App) StopServer() error {
 
 func (a *App) IsServerRunning() bool {
 	return a.serverService.IsRunning()
+}
+
+func (a *App) GetServerPIN() string {
+	if !a.serverService.IsRunning() {
+		return ""
+	}
+	return a.serverService.GetPIN()
 }
 
 // network functions

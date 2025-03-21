@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/http"
 
@@ -16,12 +17,14 @@ import (
 )
 
 type service struct {
-	server          *http.Server
-	running         bool
-	port            int
-	ctx             context.Context
-	fileService     filestore.Service
-	defaultFolderID int64
+	server              *http.Server
+	running             bool
+	port                int
+	pin                 string
+	ctx                 context.Context
+	registrationService registration.Service
+	fileService         filestore.Service
+	defaultFolderID     int64
 }
 
 func NewService(
@@ -32,10 +35,11 @@ func NewService(
 	defaultFolderID int64,
 ) Service {
 	srv := &service{
-		ctx:             ctx,
-		running:         false,
-		fileService:     fileService,
-		defaultFolderID: defaultFolderID,
+		ctx:                 ctx,
+		running:             false,
+		fileService:         fileService,
+		defaultFolderID:     defaultFolderID,
+		registrationService: registrationService,
 	}
 
 	// Initialize handlers
@@ -58,6 +62,10 @@ func (s *service) Start(port int) error {
 	if s.running {
 		return fmt.Errorf("server is already running")
 	}
+
+	s.pin = generateRandomPIN()
+
+	s.registrationService.SetPINCode(s.pin)
 
 	ipStrings, err := network.GetLocalIPs()
 
@@ -111,4 +119,13 @@ func (s *service) Stop(ctx context.Context) error {
 
 func (s *service) IsRunning() bool {
 	return s.running
+}
+
+func (s *service) GetPIN() string {
+	return s.pin
+}
+
+func generateRandomPIN() string {
+	pinNumber := 100000 + rand.Intn(900000)
+	return fmt.Sprintf("%06d", pinNumber)
 }
