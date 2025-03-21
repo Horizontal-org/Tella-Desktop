@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"Tella-Desktop/backend/core/database"
+	"Tella-Desktop/backend/core/modules/auth"
 	"Tella-Desktop/backend/core/modules/client"
 	"Tella-Desktop/backend/core/modules/registration"
 	"Tella-Desktop/backend/core/modules/server"
@@ -17,6 +18,7 @@ import (
 type App struct {
 	ctx                 context.Context
 	db                  *database.DB
+	authService         auth.Service
 	registrationService registration.Service
 	transferService     transfer.Service
 	serverService       server.Service
@@ -31,6 +33,20 @@ func (a *App) SendTestFile(ip string, port int, pin string) error {
 	return a.clientService.SendTestFile(ip, port, pin)
 }
 
+// Auth related methods to expose to frontend
+func (a *App) IsFirstTimeSetup() bool {
+	return a.authService.IsFirstTimeSetup()
+}
+
+func (a *App) CreatePassword(password string) error {
+	return a.authService.CreatePassword(password)
+}
+
+func (a *App) VerifyPassword(password string) error {
+	err := a.authService.DecryptDatabaseKey(password)
+	return err
+}
+
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{}
@@ -39,14 +55,25 @@ func NewApp() *App {
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 
-	// Initialize database
-	dbPath := database.GetDatabasePath()
-	db, err := database.Initialize(dbPath)
-	if err != nil {
-		runtime.LogFatalf(ctx, "Failed to initialize database: %v", err)
+	// Initialize auth service first
+	a.authService = auth.NewService(ctx)
+	if err := a.authService.Initialize(ctx); err != nil {
+		runtime.LogFatalf(ctx, "Failed to initialize auth service: %v", err)
 		return
 	}
-	a.db = db
+
+	// Initialize database
+	if !a.authService.IsFirstTimeSetup() {
+		// Try to initialize database
+		// we'll change this later to decrypt the database first
+		dbPath := database.GetDatabasePath()
+		db, err := database.Initialize(dbPath)
+		if err != nil {
+			runtime.LogFatalf(ctx, "Failed to initialize database: %v", err)
+			return
+		}
+		a.db = db
+	}
 
 	a.registrationService = registration.NewService(a.ctx)
 	a.transferService = transfer.NewService(a.ctx)

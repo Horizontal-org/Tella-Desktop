@@ -1,6 +1,7 @@
 package database
 
 import (
+	"Tella-Desktop/backend/utils/authutils"
 	"database/sql"
 	"embed"
 	"fmt"
@@ -80,9 +81,5 @@ func runMigrations(db *sql.DB) error {
 
 // GetDatabasePath returns the path where the database should be stored
 func GetDatabasePath() string {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(".", "TellaVault", "tella.db")
-	}
-	return filepath.Join(homeDir, "Documents", "TellaVault", "tella.db")
+	return authutils.GetDatabasePath()
 }
