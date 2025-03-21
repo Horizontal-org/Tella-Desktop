@@ -1,5 +1,6 @@
 package registration
 
 type Service interface {
-    Register(device *Device) error
+	CreateSession(pin string, nonce string) (string, error)
+	SetPINCode(pinCode string)
 }

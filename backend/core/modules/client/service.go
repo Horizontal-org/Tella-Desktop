@@ -18,8 +18,9 @@ import (
 )
 
 type service struct {
-	ctx    context.Context
-	client *http.Client
+	ctx       context.Context
+	client    *http.Client
+	sessionID string
 }
 
 func NewService(ctx context.Context) Service {
@@ -52,25 +53,13 @@ func NewService(ctx context.Context) Service {
 	}
 }
 
-func (s *service) RegisterWithDevice(ip string, port int) error {
+func (s *service) RegisterWithDevice(ip string, port int, pin string) error {
 	regRequest := struct {
-		Alias       string `json:"alias"`
-		Version     string `json:"version"`
-		DeviceModel string `json:"deviceModel"`
-		DeviceType  string `json:"deviceType"`
-		Fingerprint string `json:"fingerprint"`
-		Port        int    `json:"port"`
-		Protocol    string `json:"protocol"`
-		Download    bool   `json:"download"`
+		PIN   string `json:"pin"`
+		Nonce string `json:"nonce"`
 	}{
-		Alias:       "TellaDesktop",
-		Version:     "2.1",
-		DeviceModel: "Desktop",
-		DeviceType:  "desktop",
-		Fingerprint: uuid.New().String(),
-		Port:        port,
-		Protocol:    "https",
-		Download:    false,
+		PIN:   pin,
+		Nonce: uuid.New().String(),
 	}
 
 	payload, err := json.Marshal(regRequest)
@@ -78,7 +67,7 @@ func (s *service) RegisterWithDevice(ip string, port int) error {
 		return fmt.Errorf("failed to marshal registration request: %v", err)
 	}
 
-	url := fmt.Sprintf("https://%s:%d/api/localsend/v2/register", ip, port)
+	url := fmt.Sprintf("https://%s:%d/api/v1/register", ip, port)
 	runtime.LogInfo(s.ctx, fmt.Sprintf("Attempting to connect to: %s", url))
 
 	resp, err := s.client.Post(url, "application/json", bytes.NewBuffer(payload))
@@ -91,6 +80,16 @@ func (s *service) RegisterWithDevice(ip string, port int) error {
 		return fmt.Errorf("registration failed with status: %d", resp.StatusCode)
 	}
 
+	var response struct {
+		SessionID string `json:"sessionId"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return fmt.Errorf("failed to decode registration response: %v", err)
+	}
+
+	s.sessionID = response.SessionID
+	runtime.LogInfo(s.ctx, fmt.Sprintf("Successfully registered with session ID: %s", s.sessionID))
 	return nil
 }
 
