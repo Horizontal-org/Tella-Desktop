@@ -8,7 +8,7 @@ require (
 	github.com/adrg/xdg v0.5.3
 	github.com/google/uuid v1.6.0
 	github.com/matthewhartstonge/argon2 v1.2.0
-	github.com/mattn/go-sqlite3 v1.14.24
+	github.com/mutecomm/go-sqlcipher/v4 v4.4.2
 	github.com/wailsapp/wails/v2 v2.10.1
 )
 
