@@ -1,106 +1,82 @@
 package transfer
 
 import (
+	"Tella-Desktop/backend/utils/transferutils"
 	"context"
+	"fmt"
+	"io"
+	"sync"
+
+	"Tella-Desktop/backend/core/modules/filestore"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type service struct {
-	ctx       context.Context
-	transfers map[string]*Transfer
-	sessions  map[string]string
+	ctx         context.Context
+	transfers   sync.Map
+	fileService filestore.Service
 }
 
-func NewService(ctx context.Context) Service {
+func NewService(ctx context.Context, fileSerservice filestore.Service) Service {
 	return &service{
-		ctx:       ctx,
-		transfers: make(map[string]*Transfer),
-		sessions:  make(map[string]string),
+		ctx:         ctx,
+		transfers:   sync.Map{},
+		fileService: fileSerservice,
 	}
 }
 
 func (s *service) PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadResponse, error) {
-	sessionId := uuid.New().String()
-	fileTokens := make(map[string]string)
+	transmissionID := uuid.New().String()
 
-	// Store sender information
-	s.sessions[sessionId] = request.Info.Fingerprint
-
-	// Process each file in the request
-	for fileId, fileInfo := range request.Files {
-		token := uuid.New().String()
-		fileTokens[fileId] = token
-
-		s.transfers[fileId] = &Transfer{
-			ID:        fileId,
-			SessionID: sessionId,
-			Token:     token,
-			FileName:  fileInfo.FileName,
-			Size:      fileInfo.Size,
-			FileType:  fileInfo.FileType,
-			Status:    "preparing",
+	for fileID, fileInfo := range request.Metadata.Files {
+		transfer := &Transfer{
+			ID:        transmissionID,
+			SessionID: request.SessionID,
+			FileInfo:  fileInfo,
 		}
+		s.transfers.Store(fileID, transfer)
 	}
 
-	runtime.LogInfo(s.ctx, "Prepared upload session: "+sessionId)
-
 	return &PrepareUploadResponse{
-		SessionID: sessionId,
-		Files:     fileTokens,
+		TransmissionID: transmissionID,
 	}, nil
 }
 
-func (s *service) ValidateTransfer(sessionId, fileId, token string) bool {
-	transfer, exists := s.transfers[fileId]
-	if !exists {
-		return false
+func (s *service) GetTransfer(fileID string) (*Transfer, error) {
+	if value, ok := s.transfers.Load(fileID); ok {
+		if transfers, ok := value.(*Transfer); ok {
+			return transfers, nil
+		}
 	}
-
-	if transfer.Status != "preparing" && transfer.Status != "in_progress" {
-		// Transfer already completed or failed
-		return false
-	}
-
-	// Validate session and token
-	valid := transfer.SessionID == sessionId && transfer.Token == token
-
-	if valid {
-		// Update status to in_progress
-		transfer.Status = "in_progress"
-	}
-
-	return valid
+	return nil, transferutils.ErrTransferNotFound
 }
 
-func (s *service) CompleteTransfer(sessionId, fileId string) error {
-	transfer, exists := s.transfers[fileId]
-	if !exists {
-		return nil
+func (s *service) HandleUpload(sessionID, transmissionID, fileID string, reader io.Reader, fileName string, mimeType string, folderID int64) error {
+	transfer, err := s.GetTransfer(fileID)
+	if err != nil {
+		return err
 	}
 
-	if transfer.SessionID != sessionId {
-		return nil
+	if transfer.SessionID != sessionID {
+		return transferutils.ErrInvalidSession
 	}
 
-	// Update status to completed
+	if transfer.Status == "completed" {
+		return transferutils.ErrTransferComplete
+	}
+
+	metadata, err := s.fileService.StoreFile(folderID, fileName, mimeType, reader)
+	if err != nil {
+		transfer.Status = "failed"
+		s.transfers.Store(fileID, transfer)
+		return fmt.Errorf("failed to store file: %w", err)
+	}
+
 	transfer.Status = "completed"
+	s.transfers.Store(fileID, transfer)
 
-	runtime.LogInfo(s.ctx, "Completed transfer for file: "+fileId)
-
+	runtime.LogInfo(s.ctx, fmt.Sprintf("File stored successfully. ID: %s, Name: %s", metadata.UUID, metadata.Name))
 	return nil
-}
-
-func (s *service) GetTransferDetails(sessionId, fileId string) (*Transfer, error) {
-	transfer, exists := s.transfers[fileId]
-	if !exists {
-		return nil, nil
-	}
-
-	if transfer.SessionID != sessionId {
-		return nil, nil
-	}
-
-	return transfer, nil
 }
