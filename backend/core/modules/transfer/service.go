@@ -30,13 +30,13 @@ func NewService(ctx context.Context, fileSerservice filestore.Service) Service {
 func (s *service) PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadResponse, error) {
 	transmissionID := uuid.New().String()
 
-	for fileID, fileInfo := range request.Metadata.Files {
+	for _, fileInfo := range request.Files {
 		transfer := &Transfer{
 			ID:        transmissionID,
 			SessionID: request.SessionID,
 			FileInfo:  fileInfo,
 		}
-		s.transfers.Store(fileID, transfer)
+		s.transfers.Store(fileInfo.ID, transfer)
 	}
 
 	return &PrepareUploadResponse{

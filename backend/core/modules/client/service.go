@@ -130,37 +130,33 @@ func (s *service) SendTestFile(ip string, port int, pin string) error {
 		},
 	}
 
-	// Prepare upload request
 	prepareRequest := struct {
 		Title     string `json:"title"`
 		SessionID string `json:"sessionId"`
-		Metadata  struct {
-			Files map[string]struct {
-				ID       string `json:"id"`
-				FileName string `json:"fileName"`
-				Size     int64  `json:"size"`
-				FileType string `json:"fileType"`
-				SHA256   string `json:"sha256"`
-			} `json:"files"`
-		} `json:"metadata"`
+		Files     []struct {
+			ID       string `json:"id"`
+			FileName string `json:"fileName"`
+			Size     int64  `json:"size"`
+			FileType string `json:"fileType"`
+			SHA256   string `json:"sha256"`
+		} `json:"files"`
 	}{
 		Title:     "Test Upload",
 		SessionID: s.sessionID,
+		Files: []struct {
+			ID       string `json:"id"`
+			FileName string `json:"fileName"`
+			Size     int64  `json:"size"`
+			FileType string `json:"fileType"`
+			SHA256   string `json:"sha256"`
+		}{},
 	}
-
-	prepareRequest.Metadata.Files = make(map[string]struct {
-		ID       string `json:"id"`
-		FileName string `json:"fileName"`
-		Size     int64  `json:"size"`
-		FileType string `json:"fileType"`
-		SHA256   string `json:"sha256"`
-	})
 
 	// Add all files to the prepare request
 	for _, file := range testFiles {
 		fileHash := sha256.Sum256(file.content)
 
-		prepareRequest.Metadata.Files[file.fileID] = struct {
+		fileInfo := struct {
 			ID       string `json:"id"`
 			FileName string `json:"fileName"`
 			Size     int64  `json:"size"`
@@ -173,8 +169,9 @@ func (s *service) SendTestFile(ip string, port int, pin string) error {
 			FileType: file.contentType,
 			SHA256:   hex.EncodeToString(fileHash[:]),
 		}
-	}
 
+		prepareRequest.Files = append(prepareRequest.Files, fileInfo)
+	}
 	// Send prepare request
 	prepareURL := fmt.Sprintf("https://%s:%d/api/v1/prepare-upload", ip, port)
 	preparePayload, err := json.Marshal(prepareRequest)

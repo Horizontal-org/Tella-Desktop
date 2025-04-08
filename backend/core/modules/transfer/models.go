@@ -18,11 +18,9 @@ type FileInfo struct {
 }
 
 type PrepareUploadRequest struct {
-	Title     string `json:"title"`
-	SessionID string `json:"sessionId"`
-	Metadata  struct {
-		Files map[string]FileInfo `json:"files"`
-	} `json:"metadata"`
+	Title     string     `json:"title"`
+	SessionID string     `json:"sessionId"`
+	Files     []FileInfo `json:"files"`
 }
 
 type PrepareUploadResponse struct {
@@ -44,7 +42,7 @@ func (r *PrepareUploadRequest) Validate() error {
 	if r.SessionID == "" {
 		return errors.New("sessionId is required")
 	}
-	if len(r.Metadata.Files) == 0 {
+	if len(r.Files) == 0 {
 		return errors.New("at least one file is required")
 	}
 	return nil
