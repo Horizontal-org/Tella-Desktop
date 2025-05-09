@@ -8,6 +8,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"Tella-Desktop/backend/core/modules/filestore"
 	"Tella-Desktop/backend/core/modules/registration"
 	"Tella-Desktop/backend/core/modules/transfer"
 	"Tella-Desktop/backend/utils/network"
@@ -15,25 +16,31 @@ import (
 )
 
 type service struct {
-	server  *http.Server
-	running bool
-	port    int
-	ctx     context.Context
+	server          *http.Server
+	running         bool
+	port            int
+	ctx             context.Context
+	fileService     filestore.Service
+	defaultFolderID int64
 }
 
 func NewService(
 	ctx context.Context,
 	registrationService registration.Service,
 	transferService transfer.Service,
+	fileService filestore.Service,
+	defaultFolderID int64,
 ) Service {
 	srv := &service{
-		ctx:     ctx,
-		running: false,
+		ctx:             ctx,
+		running:         false,
+		fileService:     fileService,
+		defaultFolderID: defaultFolderID,
 	}
 
 	// Initialize handlers
 	registrationHandler := registration.NewHandler(registrationService)
-	transferHandler := transfer.NewHandler(transferService)
+	transferHandler := transfer.NewHandler(transferService, fileService, defaultFolderID)
 
 	// Setup routes using handler
 	mux := http.NewServeMux()

@@ -10,12 +10,20 @@ export function GetLocalIPs() {
   return window['go']['app']['App']['GetLocalIPs']();
 }
 
+export function GetStoredFiles() {
+  return window['go']['app']['App']['GetStoredFiles']();
+}
+
 export function IsFirstTimeSetup() {
   return window['go']['app']['App']['IsFirstTimeSetup']();
 }
 
 export function IsServerRunning() {
   return window['go']['app']['App']['IsServerRunning']();
+}
+
+export function OpenFileByID(arg1) {
+  return window['go']['app']['App']['OpenFileByID'](arg1);
 }
 
 export function RegisterWithDevice(arg1, arg2) {

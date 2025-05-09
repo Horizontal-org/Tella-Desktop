@@ -6,6 +6,7 @@ import { LocalIpList } from "./Components/LocalIpList";
 import { ClientUpload } from "./Components/ClientUpload";
 import { CertificateHash } from "./Components/CertificateHash";
 import { Auth } from "./Components/Auth";
+import { FilesList } from "./Components/FileList";
 const SERVER_PORT = 53317;
 
 function App() {
@@ -57,6 +58,12 @@ function App() {
       </div>
 
       <ClientUpload />
+
+      {/* New Files List Component */}
+      <div className="card">
+        <FilesList />
+      </div>
+      
       <Notifications />
     </div>
   );

@@ -1,88 +1,106 @@
 package transfer
 
 import (
-    "io"
-    "os"
-    "path/filepath"
-    "github.com/google/uuid"
-    "github.com/wailsapp/wails/v2/pkg/runtime"
-    "context"
+	"context"
+
+	"github.com/google/uuid"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type service struct {
-    ctx       context.Context
-    uploadDir string
-    transfers map[string]*Transfer
+	ctx       context.Context
+	transfers map[string]*Transfer
+	sessions  map[string]string
 }
 
 func NewService(ctx context.Context) Service {
-    return &service{
-        ctx:       ctx,
-        uploadDir: getUploadDirectory(),
-        transfers: make(map[string]*Transfer),
-    }
+	return &service{
+		ctx:       ctx,
+		transfers: make(map[string]*Transfer),
+		sessions:  make(map[string]string),
+	}
 }
 
 func (s *service) PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadResponse, error) {
-    sessionId := uuid.New().String()
-    fileTokens := make(map[string]string)
+	sessionId := uuid.New().String()
+	fileTokens := make(map[string]string)
 
-    for fileId, fileInfo := range request.Files {
-        token := uuid.New().String()
-        fileTokens[fileId] = token
+	// Store sender information
+	s.sessions[sessionId] = request.Info.Fingerprint
 
-        s.transfers[fileId] = &Transfer{
-            ID:        fileId,
-            SessionID: sessionId,
-            Token:     token,
-            FileName:  fileInfo.FileName,
-            Size:      fileInfo.Size,
-            FileType:  fileInfo.FileType,
-            Status:    "preparing",
-        }
-    }
+	// Process each file in the request
+	for fileId, fileInfo := range request.Files {
+		token := uuid.New().String()
+		fileTokens[fileId] = token
 
-    return &PrepareUploadResponse{
-        SessionID: sessionId,
-        Files:    fileTokens,
-    }, nil
-}
+		s.transfers[fileId] = &Transfer{
+			ID:        fileId,
+			SessionID: sessionId,
+			Token:     token,
+			FileName:  fileInfo.FileName,
+			Size:      fileInfo.Size,
+			FileType:  fileInfo.FileType,
+			Status:    "preparing",
+		}
+	}
 
-func (s *service) SaveFile(sessionId, fileId, token, fileName string, reader io.Reader) error {
-    filePath := filepath.Join(s.uploadDir, fileName)
-    
-    // Create destination file
-    dst, err := os.Create(filePath)
-    if err != nil {
-        return err
-    }
-    defer dst.Close()
+	runtime.LogInfo(s.ctx, "Prepared upload session: "+sessionId)
 
-    // Copy file data
-    if _, err := io.Copy(dst, reader); err != nil {
-        return err
-    }
-
-    // Notify UI about received file
-    runtime.EventsEmit(s.ctx, "file-received", fileName)
-    
-    return nil
+	return &PrepareUploadResponse{
+		SessionID: sessionId,
+		Files:     fileTokens,
+	}, nil
 }
 
 func (s *service) ValidateTransfer(sessionId, fileId, token string) bool {
-    transfer, exists := s.transfers[fileId]
-    if !exists {
-        return false
-    }
-    return transfer.SessionID == sessionId && transfer.Token == token
+	transfer, exists := s.transfers[fileId]
+	if !exists {
+		return false
+	}
+
+	if transfer.Status != "preparing" && transfer.Status != "in_progress" {
+		// Transfer already completed or failed
+		return false
+	}
+
+	// Validate session and token
+	valid := transfer.SessionID == sessionId && transfer.Token == token
+
+	if valid {
+		// Update status to in_progress
+		transfer.Status = "in_progress"
+	}
+
+	return valid
 }
 
-func getUploadDirectory() string {
-    homeDir, err := os.UserHomeDir()
-    if err != nil {
-        return filepath.Join(".", "uploads")
-    }
-    uploadsDir := filepath.Join(homeDir, "Documents", "TellaUploads")
-    os.MkdirAll(uploadsDir, 0755)
-    return uploadsDir
+func (s *service) CompleteTransfer(sessionId, fileId string) error {
+	transfer, exists := s.transfers[fileId]
+	if !exists {
+		return nil
+	}
+
+	if transfer.SessionID != sessionId {
+		return nil
+	}
+
+	// Update status to completed
+	transfer.Status = "completed"
+
+	runtime.LogInfo(s.ctx, "Completed transfer for file: "+fileId)
+
+	return nil
+}
+
+func (s *service) GetTransferDetails(sessionId, fileId string) (*Transfer, error) {
+	transfer, exists := s.transfers[fileId]
+	if !exists {
+		return nil, nil
+	}
+
+	if transfer.SessionID != sessionId {
+		return nil, nil
+	}
+
+	return transfer, nil
 }
