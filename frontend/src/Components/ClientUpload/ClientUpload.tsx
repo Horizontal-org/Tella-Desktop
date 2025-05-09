@@ -24,7 +24,7 @@ export function ClientUpload() {
             setLoading(true);
             setCertHash('');
             setStatus('Registering...');
-            await RegisterWithDevice(ip, parseInt(port));
+            await RegisterWithDevice(ip, parseInt(port), pin);
             setStatus('Successfully registered with device');
         } catch (error) {
             setStatus(`Registration failed: ${error}`);
