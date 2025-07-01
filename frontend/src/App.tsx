@@ -7,6 +7,8 @@ import { ClientUpload } from "./Components/ClientUpload";
 import { CertificateHash } from "./Components/CertificateHash";
 import { Auth } from "./Components/Auth";
 import { FilesList } from "./Components/FileList";
+import { PinDisplay } from "./Components/PinDisplay";
+
 const SERVER_PORT = 53317;
 
 function App() {
@@ -54,6 +56,7 @@ function App() {
         >
           {serverRunning ? "Stop Server" : "Start Server"}
         </button>
+        <PinDisplay serverRunning={serverRunning} />
         <CertificateHash serverRunning={serverRunning} />
       </div>
 

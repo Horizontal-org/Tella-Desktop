@@ -1,4 +1,4 @@
-// core/modules/client/service.go
+// this is a test moodule to test the protocol from the desktop app. Should be removed in production
 package client
 
 import (
@@ -10,16 +10,22 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type service struct {
-	ctx    context.Context
-	client *http.Client
+	ctx       context.Context
+	client    *http.Client
+	sessionID string
 }
 
 func NewService(ctx context.Context) Service {
@@ -52,25 +58,13 @@ func NewService(ctx context.Context) Service {
 	}
 }
 
-func (s *service) RegisterWithDevice(ip string, port int) error {
+func (s *service) RegisterWithDevice(ip string, port int, pin string) error {
 	regRequest := struct {
-		Alias       string `json:"alias"`
-		Version     string `json:"version"`
-		DeviceModel string `json:"deviceModel"`
-		DeviceType  string `json:"deviceType"`
-		Fingerprint string `json:"fingerprint"`
-		Port        int    `json:"port"`
-		Protocol    string `json:"protocol"`
-		Download    bool   `json:"download"`
+		PIN   string `json:"pin"`
+		Nonce string `json:"nonce"`
 	}{
-		Alias:       "TellaDesktop",
-		Version:     "2.1",
-		DeviceModel: "Desktop",
-		DeviceType:  "desktop",
-		Fingerprint: uuid.New().String(),
-		Port:        port,
-		Protocol:    "https",
-		Download:    false,
+		PIN:   pin,
+		Nonce: uuid.New().String(),
 	}
 
 	payload, err := json.Marshal(regRequest)
@@ -78,7 +72,7 @@ func (s *service) RegisterWithDevice(ip string, port int) error {
 		return fmt.Errorf("failed to marshal registration request: %v", err)
 	}
 
-	url := fmt.Sprintf("https://%s:%d/api/localsend/v2/register", ip, port)
+	url := fmt.Sprintf("https://%s:%d/api/v1/register", ip, port)
 	runtime.LogInfo(s.ctx, fmt.Sprintf("Attempting to connect to: %s", url))
 
 	resp, err := s.client.Post(url, "application/json", bytes.NewBuffer(payload))
@@ -91,104 +85,156 @@ func (s *service) RegisterWithDevice(ip string, port int) error {
 		return fmt.Errorf("registration failed with status: %d", resp.StatusCode)
 	}
 
+	var response struct {
+		SessionID string `json:"session_id"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return fmt.Errorf("failed to decode registration response: %v", err)
+	}
+
+	s.sessionID = response.SessionID
+	runtime.LogInfo(s.ctx, fmt.Sprintf("Successfully registered with session ID: %s", s.sessionID))
 	return nil
 }
 
 func (s *service) SendTestFile(ip string, port int, pin string) error {
-	// Prepare upload request
-	prepareRequest := struct {
-		Info struct {
-			Alias       string `json:"alias"`
-			Version     string `json:"version"`
-			DeviceModel string `json:"deviceModel"`
-			DeviceType  string `json:"deviceType"`
-			Fingerprint string `json:"fingerprint"`
-			Port        int    `json:"port"`
-			Protocol    string `json:"protocol"`
-			Download    bool   `json:"download"`
-		} `json:"info"`
-		Files map[string]interface{} `json:"files"`
+	if s.sessionID == "" {
+		return fmt.Errorf("not registered with device, please register first")
+	}
+
+	timestamp := time.Now().Format(time.RFC3339)
+	textContent := []byte(fmt.Sprintf("Hello from Tella Desktop! Sent at: %s", timestamp))
+
+	immagePath := filepath.Join("assets", "testimage.png")
+	imageContent, err := os.ReadFile(immagePath)
+
+	// Prepare a map of test files to send
+	testFiles := []struct {
+		fileID      string
+		content     []byte
+		fileName    string
+		contentType string
 	}{
-		Files: make(map[string]interface{}),
+		{
+			fileID:      uuid.New().String(),
+			content:     textContent,
+			fileName:    "test.txt",
+			contentType: "text/plain",
+		},
+		{
+			fileID:      uuid.New().String(),
+			content:     imageContent,
+			fileName:    "test.png",
+			contentType: "image/png",
+		},
 	}
 
-	prepareRequest.Info.Alias = "TellaDesktop"
-	prepareRequest.Info.Version = "2.1"
-	prepareRequest.Info.DeviceModel = "Desktop"
-	prepareRequest.Info.DeviceType = "desktop"
-	prepareRequest.Info.Fingerprint = "test-fingerprint"
-	prepareRequest.Info.Port = port
-	prepareRequest.Info.Protocol = "https"
-	prepareRequest.Info.Download = false
-
-	fileId := uuid.New().String()
-	prepareRequest.Files[fileId] = map[string]interface{}{
-		"id":       fileId,
-		"fileName": "test.txt",
-		"size":     16,
-		"fileType": "text/plain",
+	prepareRequest := struct {
+		Title     string `json:"title"`
+		SessionID string `json:"sessionId"`
+		Files     []struct {
+			ID       string `json:"id"`
+			FileName string `json:"fileName"`
+			Size     int64  `json:"size"`
+			FileType string `json:"fileType"`
+			SHA256   string `json:"sha256"`
+		} `json:"files"`
+	}{
+		Title:     "Test Upload",
+		SessionID: s.sessionID,
+		Files: []struct {
+			ID       string `json:"id"`
+			FileName string `json:"fileName"`
+			Size     int64  `json:"size"`
+			FileType string `json:"fileType"`
+			SHA256   string `json:"sha256"`
+		}{},
 	}
 
-	payload, err := json.Marshal(prepareRequest)
+	// Add all files to the prepare request
+	for _, file := range testFiles {
+		fileHash := sha256.Sum256(file.content)
+
+		fileInfo := struct {
+			ID       string `json:"id"`
+			FileName string `json:"fileName"`
+			Size     int64  `json:"size"`
+			FileType string `json:"fileType"`
+			SHA256   string `json:"sha256"`
+		}{
+			ID:       file.fileID,
+			FileName: file.fileName,
+			Size:     int64(len(file.content)),
+			FileType: file.contentType,
+			SHA256:   hex.EncodeToString(fileHash[:]),
+		}
+
+		prepareRequest.Files = append(prepareRequest.Files, fileInfo)
+	}
+	// Send prepare request
+	prepareURL := fmt.Sprintf("https://%s:%d/api/v1/prepare-upload", ip, port)
+	preparePayload, err := json.Marshal(prepareRequest)
 	if err != nil {
 		return fmt.Errorf("failed to marshal prepare request: %v", err)
 	}
 
-	prepareURL := fmt.Sprintf("https://%s:%d/api/localsend/v2/prepare-upload?pin=%s", ip, port, pin)
-	resp, err := s.client.Post(prepareURL, "application/json", bytes.NewBuffer(payload))
+	prepareResp, err := s.client.Post(prepareURL, "application/json", bytes.NewBuffer(preparePayload))
 	if err != nil {
-		return fmt.Errorf("failed to prepare upload: %v", err)
+		return fmt.Errorf("failed to send prepare request: %v", err)
+	}
+	defer prepareResp.Body.Close()
+
+	if prepareResp.StatusCode != http.StatusOK {
+		return fmt.Errorf("prepare request failed with status: %d", prepareResp.StatusCode)
 	}
 
-	var prepareResp struct {
-		SessionId string            `json:"sessionId"`
-		Files     map[string]string `json:"files"`
+	var prepareResponse struct {
+		TransmissionID string `json:"transmissionId"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&prepareResp); err != nil {
-		resp.Body.Close()
+	if err := json.NewDecoder(prepareResp.Body).Decode(&prepareResponse); err != nil {
 		return fmt.Errorf("failed to decode prepare response: %v", err)
 	}
-	resp.Body.Close()
 
-	// Get token for our file
-	token, ok := prepareResp.Files[fileId]
-	if !ok {
-		return fmt.Errorf("no token received for file")
+	// Send each file
+	for _, file := range testFiles {
+		// Create multipart form data for file upload
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+		part, err := writer.CreateFormFile("file", file.fileName)
+		if err != nil {
+			return fmt.Errorf("failed to create form file: %v", err)
+		}
+
+		if _, err := part.Write(file.content); err != nil {
+			return fmt.Errorf("failed to write file content: %v", err)
+		}
+		writer.Close()
+
+		// Send file upload request
+		uploadURL := fmt.Sprintf(
+			"https://%s:%d/api/v1/upload?sessionId=%s&transmissionId=%s&fileId=%s",
+			ip, port, s.sessionID, prepareResponse.TransmissionID, file.fileID,
+		)
+
+		uploadReq, err := http.NewRequest("POST", uploadURL, body)
+		if err != nil {
+			return fmt.Errorf("failed to create upload request: %v", err)
+		}
+		uploadReq.Header.Set("Content-Type", writer.FormDataContentType())
+
+		uploadResp, err := s.client.Do(uploadReq)
+		if err != nil {
+			return fmt.Errorf("failed to upload file: %v", err)
+		}
+		defer uploadResp.Body.Close()
+
+		if uploadResp.StatusCode != http.StatusOK {
+			bodyBytes, _ := io.ReadAll(uploadResp.Body)
+			return fmt.Errorf("upload failed with status %d: %s", uploadResp.StatusCode, strings.TrimSpace(string(bodyBytes)))
+		}
 	}
 
-	// Upload file
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("file", "test.txt")
-	if err != nil {
-		return fmt.Errorf("failed to create form file: %v", err)
-	}
-
-	if _, err := part.Write([]byte("Hello from Tella Desktop!")); err != nil {
-		return fmt.Errorf("failed to write file content: %v", err)
-	}
-	writer.Close()
-
-	uploadURL := fmt.Sprintf(
-		"https://%s:%d/api/localsend/v2/upload?fileId=%s&token=%s&sessionId=%s",
-		ip, port, fileId, token, prepareResp.SessionId,
-	)
-
-	req, err := http.NewRequest("POST", uploadURL, body)
-	if err != nil {
-		return fmt.Errorf("failed to create upload request: %v", err)
-	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-
-	resp, err = s.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to upload file: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("upload failed with status %d", resp.StatusCode)
-	}
-
+	runtime.LogInfo(s.ctx, fmt.Sprintf("Successfully sent %d test files", len(testFiles)))
 	return nil
 }

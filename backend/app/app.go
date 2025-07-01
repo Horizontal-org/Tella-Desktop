@@ -30,8 +30,8 @@ type App struct {
 	defaultFolderID     int64
 }
 
-func (a *App) RegisterWithDevice(ip string, port int) error {
-	return a.clientService.RegisterWithDevice(ip, port)
+func (a *App) RegisterWithDevice(ip string, port int, pin string) error {
+	return a.clientService.RegisterWithDevice(ip, port, pin)
 }
 
 func (a *App) SendTestFile(ip string, port int, pin string) error {
@@ -92,7 +92,6 @@ func (a *App) Startup(ctx context.Context) {
 	}
 
 	a.registrationService = registration.NewService(a.ctx)
-	a.transferService = transfer.NewService(a.ctx)
 	a.clientService = client.NewService(a.ctx)
 }
 
@@ -125,6 +124,9 @@ func (a *App) initializeDatabase() error {
 	// Initialize filestore service with database and encryption key
 	a.fileService = filestore.NewService(a.ctx, db.DB, dbKey)
 	runtime.LogInfo(a.ctx, "File storage service initialized")
+
+	a.transferService = transfer.NewService(a.ctx, a.fileService)
+	runtime.LogInfo(a.ctx, "Transfer service initialized")
 
 	// Re-initialize transfer and server services with filestore service
 	a.serverService = server.NewService(
@@ -175,6 +177,13 @@ func (a *App) StopServer() error {
 
 func (a *App) IsServerRunning() bool {
 	return a.serverService.IsRunning()
+}
+
+func (a *App) GetServerPIN() string {
+	if !a.serverService.IsRunning() {
+		return ""
+	}
+	return a.serverService.GetPIN()
 }
 
 // network functions
