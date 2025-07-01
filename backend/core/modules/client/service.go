@@ -217,7 +217,7 @@ func (s *service) SendTestFile(ip string, port int, pin string) error {
 			ip, port, s.sessionID, prepareResponse.TransmissionID, file.fileID,
 		)
 
-		uploadReq, err := http.NewRequest("POST", uploadURL, body)
+		uploadReq, err := http.NewRequest("PUT", uploadURL, body)
 		if err != nil {
 			return fmt.Errorf("failed to create upload request: %v", err)
 		}

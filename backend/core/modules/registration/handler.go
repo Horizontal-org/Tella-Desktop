@@ -55,8 +55,22 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(struct {
-		SessionID string `json:"session_id"`
+		SessionID string `json:"sessionId"`
 	}{
 		SessionID: sessionID,
+	})
+}
+
+func (h *Handler) HandlePing(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(struct {
+		Status string `json:"status"`
+	}{
+		Status: "ok",
 	})
 }

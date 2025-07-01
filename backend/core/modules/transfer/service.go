@@ -28,19 +28,24 @@ func NewService(ctx context.Context, fileSerservice filestore.Service) Service {
 }
 
 func (s *service) PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadResponse, error) {
-	transmissionID := uuid.New().String()
+	var responseFiles []FileTransmissionInfo
 
 	for _, fileInfo := range request.Files {
+		transmissionID := uuid.New().String()
 		transfer := &Transfer{
 			ID:        transmissionID,
 			SessionID: request.SessionID,
 			FileInfo:  fileInfo,
 		}
 		s.transfers.Store(fileInfo.ID, transfer)
+		responseFiles = append(responseFiles, FileTransmissionInfo{
+			ID:             fileInfo.ID,
+			TransmissionID: transmissionID,
+		})
 	}
 
 	return &PrepareUploadResponse{
-		TransmissionID: transmissionID,
+		Files: responseFiles,
 	}, nil
 }
 

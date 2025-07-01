@@ -4,6 +4,7 @@ import (
 	"Tella-Desktop/backend/core/modules/filestore"
 	"Tella-Desktop/backend/utils/transferutils"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -58,7 +59,7 @@ func (h *Handler) HandlePrepare(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodPut {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -72,25 +73,25 @@ func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+	transfer, err := h.service.GetTransfer(fileID)
+	if err != nil {
+		fmt.Printf("Transfer not found for fileID: %s\n", fileID)
+		http.Error(w, "Transfer not found", http.StatusNotFound)
 		return
 	}
 
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		http.Error(w, "Failed to get file", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
+	fileName := transfer.FileInfo.FileName
+	mimeType := transfer.FileInfo.FileType
+
+	fmt.Printf("Receiving file: %s (type: %s)\n", fileName, mimeType)
 
 	if err := h.service.HandleUpload(
 		sessionID,
 		transmissionID,
 		fileID,
-		file,
-		header.Filename,
-		header.Header.Get("Content-Type"),
+		r.Body,
+		fileName,
+		mimeType,
 		h.defaultFolder,
 	); err != nil {
 		switch err {
