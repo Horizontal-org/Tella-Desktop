@@ -7,8 +7,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"Tella-Desktop/backend/core/modules/filestore"
 	"Tella-Desktop/backend/core/modules/registration"
 	"Tella-Desktop/backend/core/modules/transfer"
@@ -95,12 +93,12 @@ func (s *service) Start(port int) error {
 
 	go func() {
 		if err := s.server.ListenAndServeTLS("", ""); err != http.ErrServerClosed {
-			runtime.LogError(s.ctx, fmt.Sprintf("HTTP server error: %v", err))
+			fmt.Printf("HTTP server error: %v", err)
 		}
 	}()
 
 	s.running = true
-	runtime.LogInfo(s.ctx, fmt.Sprintf("HTTPS Server started on port %d", port))
+	fmt.Printf("HTTPS Server started on port %d", port)
 	return nil
 }
 

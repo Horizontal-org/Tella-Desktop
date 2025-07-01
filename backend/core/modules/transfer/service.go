@@ -10,7 +10,6 @@ import (
 	"Tella-Desktop/backend/core/modules/filestore"
 
 	"github.com/google/uuid"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type service struct {
@@ -82,6 +81,6 @@ func (s *service) HandleUpload(sessionID, transmissionID, fileID string, reader 
 	transfer.Status = "completed"
 	s.transfers.Store(fileID, transfer)
 
-	runtime.LogInfo(s.ctx, fmt.Sprintf("File stored successfully. ID: %s, Name: %s", metadata.UUID, metadata.Name))
+	fmt.Printf("File stored successfully. ID: %s, Name: %s", metadata.UUID, metadata.Name)
 	return nil
 }

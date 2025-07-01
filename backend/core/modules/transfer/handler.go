@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type Handler struct {
@@ -32,27 +30,27 @@ func (h *Handler) HandlePrepare(w http.ResponseWriter, r *http.Request) {
 
 	var request PrepareUploadRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		runtime.LogError(r.Context(), "Failed to decode prepare upload request: "+err.Error())
+		fmt.Printf("Failed to decode prepare upload request: %s\n", err.Error())
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
 	if err := request.Validate(); err != nil {
-		runtime.LogError(r.Context(), "Invalid prepare upload request: "+err.Error())
+		fmt.Printf("Invalid prepare upload request: %s\n", err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	response, err := h.service.PrepareUpload(&request)
 	if err != nil {
-		runtime.LogError(r.Context(), "Failed to prepare upload: "+err.Error())
+		fmt.Printf("Failed to prepare upload: %s\n", err.Error())
 		http.Error(w, "Failed to prepare upload", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		runtime.LogError(r.Context(), "Failed to encode response: "+err.Error())
+		fmt.Printf("Failed to encode response: %s\n", err.Error())
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -102,7 +100,7 @@ func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		case transferutils.ErrTransferComplete:
 			http.Error(w, "Transfer already completed", http.StatusConflict)
 		default:
-			runtime.LogError(r.Context(), "Upload failed: "+err.Error())
+			fmt.Printf("Upload failed: %s\n", err.Error())
 			http.Error(w, "Failed to store file", http.StatusInternalServerError)
 		}
 		return
