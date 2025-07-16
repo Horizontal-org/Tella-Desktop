@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Auth } from '../Components/Auth';
 import { Dashboard } from '../Components/Dashboard';
 import { ProtectedRoute } from '../Components/ProtectedRoute/ProtectedRoute';
+import { NearbySharing } from '../Components/NearbySharing/NearbySharing';
 
 interface AppRouterProps {
   isAuthenticated: boolean;
@@ -31,6 +32,16 @@ export function AppRouter({ isAuthenticated, onLoginSuccess }: AppRouterProps) {
             </ProtectedRoute>
           } 
         />
+
+        <Route 
+          path="/nearby-sharing" 
+          element={
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <NearbySharing />
+            </ProtectedRoute>
+          } 
+        />
+        
         
         <Route 
           path="*" 

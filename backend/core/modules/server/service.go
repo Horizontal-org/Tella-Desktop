@@ -41,7 +41,7 @@ func NewService(
 	}
 
 	// Initialize handlers
-	registrationHandler := registration.NewHandler(registrationService)
+	registrationHandler := registration.NewHandler(registrationService, ctx)
 	transferHandler := transfer.NewHandler(transferService, fileService, defaultFolderID)
 
 	// Setup routes using handler
