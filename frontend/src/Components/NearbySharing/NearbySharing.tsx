@@ -5,6 +5,8 @@ import { PinDisplay } from "../PinDisplay";
 import { EventsOn } from "../../../wailsjs/runtime/runtime";
 import { CertificateVerificationModal } from "../CertificateHash/CertificateVerificationModal";
 import styled from 'styled-components';
+import { FileReceiving } from "../FileReceiving/FileReceiving";
+import { FileRequest } from "../FileRequest/FileRequest";
 
 const SERVER_PORT = 53317;
 
@@ -17,6 +19,7 @@ export function NearbySharing() {
   const [wifiNetwork, setWifiNetwork] = useState<string>('');
   const [isWifiConfirmed, setIsWifiConfirmed] = useState(false);
   const [localIPs, setLocalIPs] = useState<string[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string>('');
 
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [certificateHash, setCertificateHash] = useState<string>('');
@@ -34,13 +37,11 @@ export function NearbySharing() {
 
   fetchNetworkInfo();
 
-  // Listen for ping events from iOS devices - THIS IS THE KEY LISTENER
   const cleanupPingListener = EventsOn("ping-received", (data) => {
     console.log("Ping received from iOS device:", data);
-    setShowVerificationModal(true); // THIS SHOWS THE MODAL
+    setShowVerificationModal(true);
   });
 
-  // Listen for certificate hash events
   const cleanupCertListener = EventsOn("certificate-hash", (data) => {
     console.log("Certificate hash received:", data);
     setCertificateHash(data.toString());
@@ -52,7 +53,6 @@ export function NearbySharing() {
   };
 }, []);
 
-  // Modal handlers
   const handleVerificationConfirm = () => {
     console.log("✅ Certificate verification CONFIRMED");
     setShowVerificationModal(false);
@@ -66,13 +66,18 @@ export function NearbySharing() {
     setCurrentStep('intro');
   };
 
-  const handleBack = () => {
-    if (currentStep === 'intro') {
-      navigate('/');
-    } else if (currentStep === 'connect') {
-      handleStopServer();
-      setCurrentStep('intro');
+  const handleBack = async () => {
+    if (serverRunning) {
+      await handleStopServer();
     }
+    
+    setCurrentSessionId('');
+    setIsWifiConfirmed(false);
+    setShowVerificationModal(false);
+    setCertificateHash('');
+    
+
+    navigate('/');
   };
 
   const handleContinue = async () => {
@@ -97,6 +102,24 @@ export function NearbySharing() {
       }
     }
   };
+
+  const handleFileRequestAccept = (sessionId: string) => {
+    setCurrentSessionId(sessionId);
+    setCurrentStep('receive');
+  };
+
+  const handleFileRequestReject = () => {
+    setCurrentStep('connect');
+  };
+
+  const handleFileReceiving = () => {
+    setCurrentStep('receive');
+  };
+
+  const handleReceiveComplete = () => {
+    setCurrentStep('results');
+  };
+
 
   const renderStepIndicator = () => {
     const steps = [
@@ -209,6 +232,19 @@ export function NearbySharing() {
       <MainContent>
         {currentStep === 'intro' && renderIntroStep()}
         {currentStep === 'connect' && renderConnectStep()}
+        {currentStep === 'accept' && (
+          <FileRequest 
+            onAccept={handleFileRequestAccept}
+            onReject={handleFileRequestReject}
+            onReceiving={handleFileReceiving}
+          />
+        )}
+        {currentStep === 'receive' && (
+          <FileReceiving 
+            sessionId={currentSessionId}
+            onComplete={handleReceiveComplete}
+          />
+        )}
       </MainContent>
 
       <CertificateVerificationModal
@@ -222,7 +258,6 @@ export function NearbySharing() {
   );
 }
 
-// Styled Components
 const Container = styled.div`
   display: flex;
   flex-direction: column;
