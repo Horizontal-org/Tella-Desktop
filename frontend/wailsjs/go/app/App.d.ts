@@ -3,6 +3,8 @@
 import {filestore} from '../models';
 import {context} from '../models';
 
+export function AcceptTransfer(arg1:string):Promise<void>;
+
 export function CreatePassword(arg1:string):Promise<void>;
 
 export function GetLocalIPs():Promise<Array<string>>;
@@ -18,6 +20,8 @@ export function IsServerRunning():Promise<boolean>;
 export function OpenFileByID(arg1:number):Promise<void>;
 
 export function RegisterWithDevice(arg1:string,arg2:number,arg3:string):Promise<void>;
+
+export function RejectTransfer(arg1:string):Promise<void>;
 
 export function SendTestFile(arg1:string,arg2:number,arg3:string):Promise<void>;
 

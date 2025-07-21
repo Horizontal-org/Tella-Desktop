@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type service struct {
@@ -104,7 +103,7 @@ func (s *service) StoreFile(folderID int64, fileName string, mimeType string, re
 		CreatedAt: time.Now(),
 	}
 
-	runtime.LogInfo(s.ctx, fmt.Sprintf("Stored file %s (%s) at offset %d with size %d", fileName, fileUUID, offset, encryptedSize))
+	fmt.Printf("Stored file %s (%s) at offset %d with size %d", fileName, fileUUID, offset, encryptedSize)
 	return metadata, nil
 
 }
@@ -143,7 +142,7 @@ func (s *service) OpenFileByID(id int64) error {
 		return err
 	}
 
-	runtime.LogInfo(s.ctx, fmt.Sprintf("Opening file: %s (ID: %d)", metadata.Name, id))
+	fmt.Printf("Opening file: %s (ID: %d)", metadata.Name, id)
 
 	tvault, err := os.Open(s.tvaultPath)
 	if err != nil {
@@ -183,23 +182,23 @@ func (s *service) OpenFileByID(id int64) error {
 
 	err = os.Chmod(tempFilePath, 0644)
 	if err != nil {
-		runtime.LogWarning(s.ctx, fmt.Sprintf("Failed to set file permissions: %v", err))
+		fmt.Printf("Failed to set file permissions: %v", err)
 	}
 
-	runtime.LogInfo(s.ctx, fmt.Sprintf("File decrypted successfully to: %s", tempFilePath))
+	fmt.Printf("File decrypted successfully to: %s", tempFilePath)
 
 	if err := s.recordTempFile(id, tempFilePath); err != nil {
-		runtime.LogWarning(s.ctx, fmt.Sprintf("Failed to record temp file in database: %v", err))
+		fmt.Printf("Failed to record temp file in database: %v", err)
 	}
 
 	err = openFileWithDefaultApp(tempFilePath)
 	if err != nil {
-		runtime.LogWarning(s.ctx, fmt.Sprintf("Failed to open file automatically: %v", err))
-		runtime.LogInfo(s.ctx, fmt.Sprintf("File decrypted and saved to: %s", tempFilePath))
+		fmt.Printf("Failed to open file automatically: %v", err)
+		fmt.Printf("File decrypted and saved to: %s", tempFilePath)
 		return nil
 	}
 
-	runtime.LogInfo(s.ctx, fmt.Sprintf("File decrypted and opened: %s", metadata.Name))
+	fmt.Printf("File decrypted and opened: %s", metadata.Name)
 	return nil
 }
 

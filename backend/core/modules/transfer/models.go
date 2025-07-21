@@ -24,6 +24,11 @@ type PrepareUploadRequest struct {
 }
 
 type PrepareUploadResponse struct {
+	Files []FileTransmissionInfo `json:"files"`
+}
+
+type FileTransmissionInfo struct {
+	ID             string `json:"id"`
 	TransmissionID string `json:"transmissionId"`
 }
 

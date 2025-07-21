@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"Tella-Desktop/backend/core/database"
 	"Tella-Desktop/backend/core/modules/auth"
@@ -198,4 +199,19 @@ func (a *App) GetStoredFiles() ([]filestore.FileInfo, error) {
 
 func (a *App) OpenFileByID(id int64) error {
 	return a.fileService.OpenFileByID(id)
+}
+
+// upload functions
+func (a *App) AcceptTransfer(sessionID string) error {
+	if a.transferService == nil {
+		return fmt.Errorf("transfer service not initialized")
+	}
+	return a.transferService.AcceptTransfer(sessionID)
+}
+
+func (a *App) RejectTransfer(sessionID string) error {
+	if a.transferService == nil {
+		return fmt.Errorf("transfer service not initialized")
+	}
+	return a.transferService.RejectTransfer(sessionID)
 }

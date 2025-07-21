@@ -1,19 +1,24 @@
 package registration
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type Handler struct {
 	service Service
+	ctx     context.Context
 }
 
-func NewHandler(service Service) *Handler {
+func NewHandler(service Service, ctx context.Context) *Handler {
 	return &Handler{
 		service: service,
+		ctx:     ctx,
 	}
 }
 
@@ -55,8 +60,27 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(struct {
-		SessionID string `json:"session_id"`
+		SessionID string `json:"sessionId"`
 	}{
 		SessionID: sessionID,
+	})
+}
+
+func (h *Handler) HandlePing(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	runtime.EventsEmit(h.ctx, "ping-received", map[string]interface{}{
+		"timestamp": "now",
+		"message":   "Device attempting to connect",
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(struct {
+		Status string `json:"status"`
+	}{
+		Status: "ok",
 	})
 }

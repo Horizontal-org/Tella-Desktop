@@ -38,6 +38,22 @@ func Initialize(dbPath string, key []byte) (*DB, error) {
 		return nil, fmt.Errorf("failed to open database: %v", err)
 	}
 
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(0)
+
+	_, err = db.Exec("PRAGMA busy_timeout = 30000")
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to set busy timeout: %v", err)
+	}
+
+	_, err = db.Exec("PRAGMA journal_mode = WAL")
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to set WAL mode: %v", err)
+	}
+
 	// Verify we can read the database
 	var count int
 	err = db.QueryRow("SELECT count(*) FROM sqlite_master").Scan(&count)

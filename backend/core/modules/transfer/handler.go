@@ -4,9 +4,8 @@ import (
 	"Tella-Desktop/backend/core/modules/filestore"
 	"Tella-Desktop/backend/utils/transferutils"
 	"encoding/json"
+	"fmt"
 	"net/http"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type Handler struct {
@@ -31,34 +30,34 @@ func (h *Handler) HandlePrepare(w http.ResponseWriter, r *http.Request) {
 
 	var request PrepareUploadRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		runtime.LogError(r.Context(), "Failed to decode prepare upload request: "+err.Error())
+		fmt.Printf("Failed to decode prepare upload request: %s\n", err.Error())
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
 	if err := request.Validate(); err != nil {
-		runtime.LogError(r.Context(), "Invalid prepare upload request: "+err.Error())
+		fmt.Printf("Invalid prepare upload request: %s\n", err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	response, err := h.service.PrepareUpload(&request)
 	if err != nil {
-		runtime.LogError(r.Context(), "Failed to prepare upload: "+err.Error())
+		fmt.Printf("Failed to prepare upload: %s\n", err.Error())
 		http.Error(w, "Failed to prepare upload", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		runtime.LogError(r.Context(), "Failed to encode response: "+err.Error())
+		fmt.Printf("Failed to encode response: %s\n", err.Error())
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 }
 
 func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodPut {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -72,25 +71,25 @@ func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+	transfer, err := h.service.GetTransfer(fileID)
+	if err != nil {
+		fmt.Printf("Transfer not found for fileID: %s\n", fileID)
+		http.Error(w, "Transfer not found", http.StatusNotFound)
 		return
 	}
 
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		http.Error(w, "Failed to get file", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
+	fileName := transfer.FileInfo.FileName
+	mimeType := transfer.FileInfo.FileType
+
+	fmt.Printf("Receiving file: %s (type: %s)\n", fileName, mimeType)
 
 	if err := h.service.HandleUpload(
 		sessionID,
 		transmissionID,
 		fileID,
-		file,
-		header.Filename,
-		header.Header.Get("Content-Type"),
+		r.Body,
+		fileName,
+		mimeType,
 		h.defaultFolder,
 	); err != nil {
 		switch err {
@@ -101,7 +100,7 @@ func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		case transferutils.ErrTransferComplete:
 			http.Error(w, "Transfer already completed", http.StatusConflict)
 		default:
-			runtime.LogError(r.Context(), "Upload failed: "+err.Error())
+			fmt.Printf("Upload failed: %s\n", err.Error())
 			http.Error(w, "Failed to store file", http.StatusInternalServerError)
 		}
 		return
