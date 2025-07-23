@@ -4,6 +4,7 @@ import { StartServer, StopServer, GetLocalIPs } from "../../../wailsjs/go/app/Ap
 import { PinDisplay } from "../PinDisplay";
 import { EventsOn } from "../../../wailsjs/runtime/runtime";
 import { CertificateVerificationModal } from "../CertificateHash/CertificateVerificationModal";
+import { StepIndicator } from "./StepIndicator";
 import styled from 'styled-components';
 import { FileReceiving } from "../FileReceiving/FileReceiving";
 import { FileRequest } from "../FileRequest/FileRequest";
@@ -153,34 +154,6 @@ export function NearbySharing() {
     setCurrentStep('results');
   };
 
-  const renderStepIndicator = () => {
-    const steps = [
-      { key: 'intro', label: 'Intro', number: 1 },
-      { key: 'connect', label: 'Connect', number: 2 },
-      { key: 'accept', label: 'Accept', number: 3 },
-      { key: 'receive', label: 'Receive', number: 4 },
-      { key: 'results', label: 'Results', number: 5 },
-    ];
-
-    return (
-      <StepIndicator>
-        {steps.map((step, index) => (
-          <StepItem key={step.key}>
-            <StepCircle $isActive={step.key === currentStep} $isCompleted={false}>
-              {step.key === currentStep ? (
-                <CheckIcon>✓</CheckIcon>
-              ) : (
-                step.number
-              )}
-            </StepCircle>
-            <StepLabel>{step.label}</StepLabel>
-            {index < steps.length - 1 && <StepConnector />}
-          </StepItem>
-        ))}
-      </StepIndicator>
-    );
-  };
-
   const renderIntroStep = () => (
     <StepContent>
       <StepTitle>Make sure both devices are connected to the same Wi-Fi network.</StepTitle>
@@ -285,7 +258,9 @@ export function NearbySharing() {
         <Title>Nearby Sharing: Receive Files</Title>
       </Header>
 
-      {renderStepIndicator()}
+      <StepIndicator 
+        currentStep={currentStep}
+      />
 
       <MainContent>
         {currentStep === 'intro' && renderIntroStep()}
@@ -359,54 +334,6 @@ const Title = styled.h1`
   font-weight: 600;
   color: #212529;
   margin: 0;
-`;
-
-const StepIndicator = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  background-color: white;
-  border-bottom: 1px solid #CFCFCF;
-`;
-
-const StepItem = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-  padding-right: 1rem;
-`;
-
-const StepCircle = styled.div<{ $isActive: boolean; $isCompleted: boolean }>`
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.875rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  
-  ${({ $isActive, $isCompleted }) => {
-    if ($isCompleted) {
-      return `
-        background-color: #28a745;
-        color: white;
-      `;
-    } else if ($isActive) {
-      return `
-        background-color: #28a745;
-        color: white;
-      `;
-    } else {
-      return `
-        background-color: #CFCFCF;
-        color: #6c757d;
-      `;
-    }
-  }}
 `;
 
 const CheckIcon = styled.span`
