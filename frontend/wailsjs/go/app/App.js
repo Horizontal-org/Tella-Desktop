@@ -6,6 +6,10 @@ export function AcceptTransfer(arg1) {
   return window['go']['app']['App']['AcceptTransfer'](arg1);
 }
 
+export function ConfirmRegistration() {
+  return window['go']['app']['App']['ConfirmRegistration']();
+}
+
 export function CreatePassword(arg1) {
   return window['go']['app']['App']['CreatePassword'](arg1);
 }
@@ -36,6 +40,10 @@ export function OpenFileByID(arg1) {
 
 export function RegisterWithDevice(arg1, arg2, arg3) {
   return window['go']['app']['App']['RegisterWithDevice'](arg1, arg2, arg3);
+}
+
+export function RejectRegistration() {
+  return window['go']['app']['App']['RejectRegistration']();
 }
 
 export function RejectTransfer(arg1) {

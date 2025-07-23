@@ -24,6 +24,7 @@ type App struct {
 	db                  *database.DB
 	authService         auth.Service
 	registrationService registration.Service
+	registrationHandler *registration.Handler
 	transferService     transfer.Service
 	serverService       server.Service
 	clientService       client.Service
@@ -93,7 +94,22 @@ func (a *App) Startup(ctx context.Context) {
 	}
 
 	a.registrationService = registration.NewService(a.ctx)
+	a.registrationHandler = registration.NewHandler(a.registrationService, a.ctx)
 	a.clientService = client.NewService(a.ctx)
+}
+
+func (a *App) ConfirmRegistration() error {
+	if a.registrationHandler == nil {
+		return fmt.Errorf("registration handler not initialized")
+	}
+	return a.registrationHandler.ConfirmRegistration()
+}
+
+func (a *App) RejectRegistration() error {
+	if a.registrationHandler == nil {
+		return fmt.Errorf("registration handler not initialized")
+	}
+	return a.registrationHandler.RejectRegistration()
 }
 
 // Helper method to initialize the database with encryption
@@ -133,6 +149,7 @@ func (a *App) initializeDatabase() error {
 	a.serverService = server.NewService(
 		a.ctx,
 		a.registrationService,
+		a.registrationHandler,
 		a.transferService,
 		a.fileService,
 		a.defaultFolderID,

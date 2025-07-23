@@ -24,6 +24,7 @@ type service struct {
 	pin                 string
 	ctx                 context.Context
 	registrationService registration.Service
+	registrationHandler *registration.Handler
 	transferService     transfer.Service
 	fileService         filestore.Service
 	defaultFolderID     int64
@@ -33,6 +34,7 @@ type service struct {
 func NewService(
 	ctx context.Context,
 	registrationService registration.Service,
+	registrationHandler *registration.Handler,
 	transferService transfer.Service,
 	fileService filestore.Service,
 	defaultFolderID int64,
@@ -41,6 +43,7 @@ func NewService(
 		ctx:                 ctx,
 		running:             false,
 		registrationService: registrationService,
+		registrationHandler: registrationHandler,
 		transferService:     transferService,
 		fileService:         fileService,
 		defaultFolderID:     defaultFolderID,
@@ -85,10 +88,9 @@ func (s *service) Start(port int) error {
 
 	mux := http.NewServeMux()
 
-	registrationHandler := registration.NewHandler(s.registrationService, s.ctx)
 	transferHandler := transfer.NewHandler(s.transferService, s.fileService, s.defaultFolderID)
 
-	handler := NewHandler(mux, registrationHandler, transferHandler)
+	handler := NewHandler(mux, s.registrationHandler, transferHandler)
 	handler.SetupRoutes()
 
 	s.server = &http.Server{

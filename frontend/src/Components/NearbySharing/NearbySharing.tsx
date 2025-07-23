@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
-import { StartServer, StopServer, GetLocalIPs } from "../../../wailsjs/go/app/App";
+import { StartServer, StopServer, GetLocalIPs, RejectRegistration, ConfirmRegistration } from "../../../wailsjs/go/app/App";
 import { EventsOn } from "../../../wailsjs/runtime/runtime";
 import { CertificateVerificationModal } from "../CertificateHash/CertificateVerificationModal";
 import { StepIndicator } from "./StepIndicator";
@@ -14,6 +14,7 @@ import { ResultsStep } from "./Results";
 const SERVER_PORT = 53317;
 
 type FlowStep = 'intro' | 'connect' | 'accept' | 'receive' | 'results';
+type ModalState = 'waiting' | 'confirm';
 
 interface FileInfo {
   id: string;
@@ -42,6 +43,7 @@ export function NearbySharing() {
 
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [certificateHash, setCertificateHash] = useState<string>('');
+  const [modalState, setModalState] = useState<ModalState>('waiting');
 
   const [isStartingServer, setIsStartingServer] = useState(false);
 
@@ -61,6 +63,12 @@ export function NearbySharing() {
     const cleanupPingListener = EventsOn("ping-received", (data) => {
       console.log("Ping received from iOS device:", data);
       setShowVerificationModal(true);
+      setModalState('waiting')
+    });
+
+    const cleanupRegisterListener = EventsOn("register-request-received", (data) => {
+      console.log("Register request received:", data);
+      setModalState('confirm'); // Change to confirm state
     });
 
     const cleanupCertListener = EventsOn("certificate-hash", (data) => {
@@ -78,21 +86,34 @@ export function NearbySharing() {
 
     return () => {
       cleanupPingListener();
+      cleanupRegisterListener();
       cleanupCertListener();
       cleanupPrepareRequest();
     };
   }, []);
 
-  const handleVerificationConfirm = () => {
+  const handleVerificationConfirm = async () => {
     console.log("✅ Certificate verification CONFIRMED");
-    setShowVerificationModal(false);
-    setCurrentStep('accept');
+    try {
+      await ConfirmRegistration();
+      setShowVerificationModal(false);
+      setCurrentStep('accept');
+    } catch (error) {
+      console.error("Failed to confirm registration:", error);
+    }
   };
 
-  const handleVerificationDiscard = () => {
+const handleVerificationDiscard = async () => {
     console.log("❌ Certificate verification DISCARDED");
+    try {
+      await RejectRegistration();
+    } catch (error) {
+      console.error("Failed to reject registration:", error);
+    }
+    
     setShowVerificationModal(false);
-    handleStopServer();
+    setModalState('waiting');
+    await handleStopServer();
     setCurrentStep('intro');
   };
 
@@ -106,6 +127,7 @@ export function NearbySharing() {
     setIsWifiConfirmed(false);
     setShowVerificationModal(false);
     setCertificateHash('');
+    setModalState('waiting');
     
     navigate('/');
   };
@@ -222,6 +244,7 @@ export function NearbySharing() {
       <CertificateVerificationModal
         isOpen={showVerificationModal}
         certificateHash={certificateHash}
+        modalState={modalState}
         onConfirm={handleVerificationConfirm}
         onDiscard={handleVerificationDiscard}
       />
