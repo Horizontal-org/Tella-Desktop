@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 import { StartServer, StopServer, GetLocalIPs } from "../../../wailsjs/go/app/App";
-import { PinDisplay } from "../PinDisplay";
 import { EventsOn } from "../../../wailsjs/runtime/runtime";
 import { CertificateVerificationModal } from "../CertificateHash/CertificateVerificationModal";
 import { StepIndicator } from "./StepIndicator";
 import styled from 'styled-components';
 import { FileReceiving } from "../FileReceiving/FileReceiving";
 import { FileRequest } from "../FileRequest/FileRequest";
-import wifiIcon from "../../assets/images/icons/wifi-icon.svg"
+import { ConnectStep } from "./Connect";
+import { IntroStep } from "./Intro";
 
 const SERVER_PORT = 53317;
 
@@ -42,6 +42,8 @@ export function NearbySharing() {
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [certificateHash, setCertificateHash] = useState<string>('');
 
+  const [isStartingServer, setIsStartingServer] = useState(false);
+
   useEffect(() => {
     const fetchNetworkInfo = async () => {
       try {
@@ -71,7 +73,6 @@ export function NearbySharing() {
       const requestData = data as TransferData;
       setTransferData(requestData);
       setCurrentSessionId(requestData.sessionId);
-      // Don't automatically change step here - let FileRequest component handle it
     });
 
     return () => {
@@ -111,11 +112,14 @@ export function NearbySharing() {
   const handleContinue = async () => {
     if (currentStep === 'intro' && isWifiConfirmed) {
       try {
+        setIsStartingServer(true);
         await StartServer(SERVER_PORT);
         setServerRunning(true);
         setCurrentStep('connect');
       } catch (error) {
         console.error("Failed to start server:", error);
+      } finally {
+        setIsStartingServer(false);
       }
     }
   };
@@ -154,79 +158,6 @@ export function NearbySharing() {
     setCurrentStep('results');
   };
 
-  const renderIntroStep = () => (
-    <StepContent>
-      <StepTitle>Make sure both devices are connected to the same Wi-Fi network.</StepTitle>
-      <StepSubtitle>Your Wi-Fi network does not need to be connected to the internet.</StepSubtitle>
-      
-      <NetworkCard>
-        <NetworkTitleContainer>
-          <WifiIcon />
-          <NetworkLabel>Your current Wi-Fi network</NetworkLabel>
-        </NetworkTitleContainer>
-        <NetworkName>{wifiNetwork}</NetworkName>
-
-        <CheckboxContainer>
-          <Checkbox 
-            type="checkbox" 
-            checked={isWifiConfirmed}
-            onChange={(e) => setIsWifiConfirmed(e.target.checked)}
-          />
-          <CheckboxLabel>Yes, we are on the same Wi-Fi network</CheckboxLabel>
-        </CheckboxContainer>
-
-       <ButtonContainer>
-         <ContinueButton 
-          onClick={handleContinue}
-          disabled={!isWifiConfirmed}
-          $isActive={isWifiConfirmed}
-        >
-          CONTINUE
-        </ContinueButton>
-       </ButtonContainer>
-      </NetworkCard>
-    </StepContent>
-  );
-
-  const renderConnectStep = () => (
-    <StepContent>
-      <StepTitle>The sender should input the following information in Tella on their phone.</StepTitle>
-      
-      <DeviceInfoCard>
-        <DeviceInfoHeader>
-          <DeviceInfoTitle>Your device information</DeviceInfoTitle>
-        </DeviceInfoHeader>
-        
-        <InfoRow>
-          <InfoLabel>IP ADDRESS</InfoLabel>
-          <InfoValue>{localIPs}</InfoValue>
-        </InfoRow>
-        
-        <InfoRow>
-          <InfoLabel>PIN</InfoLabel>
-          <InfoValue><PinDisplay serverRunning={serverRunning} /></InfoValue>
-        </InfoRow>
-        
-        <InfoRow>
-          <InfoLabel>Port</InfoLabel>
-          <InfoValue>{SERVER_PORT}</InfoValue>
-        </InfoRow>
-
-        <BackToAutoButton>
-          Go back to automatic connection
-        </BackToAutoButton>
-        
-        <QRCodeButton>
-          SEE QR CODE
-        </QRCodeButton>
-      </DeviceInfoCard>
-
-      <AutoMoveText>
-        You will automatically move to the next screen as soon as the connection with the sender is established.
-      </AutoMoveText>
-    </StepContent>
-  );
-
   const renderResultsStep = () => (
     <DeviceInfoCard>
       <ResultHeaderContainer>
@@ -263,8 +194,17 @@ export function NearbySharing() {
       />
 
       <MainContent>
-        {currentStep === 'intro' && renderIntroStep()}
-        {currentStep === 'connect' && renderConnectStep()}
+        {currentStep === 'intro' && (
+          <IntroStep 
+            wifiNetwork={wifiNetwork} 
+            isWifiConfirmed={isWifiConfirmed} 
+            onWifiConfirmChange={setIsWifiConfirmed} 
+            isStartingServer={isStartingServer}
+            onContinue={handleContinue} 
+          />
+        
+        )}
+        {currentStep === 'connect' && <ConnectStep serverRunning={serverRunning} localIPs={localIPs}/>}
         {currentStep === 'accept' && (
           <FileRequest 
             onAccept={handleFileRequestAccept}
@@ -340,21 +280,6 @@ const CheckIcon = styled.span`
   font-size: 1rem;
 `;
 
-const StepLabel = styled.span`
-  font-size: 0.875rem;
-  color: #6c757d;
-`;
-
-const StepConnector = styled.div`
-  position: absolute;
-  top: 16px;
-  left: 100%;
-  width: 100px;
-  height: 1px;
-  background-color: #CFCFCF;
-  z-index: -1;
-`;
-
 const MainContent = styled.div`
   flex: 1;
   display: flex;
@@ -364,11 +289,6 @@ const MainContent = styled.div`
   background-color: white;
 `;
 
-const StepContent = styled.div`
-  max-width: 600px;
-  width: 100%;
-  text-align: center;
-`;
 
 const StepTitle = styled.h2`
   font-size: 1.2rem;
@@ -395,61 +315,6 @@ const ResultContent = styled.div`
   padding: 1.5rem 2rem;
 `
 
-const NetworkCard = styled.div`
-  border: 1px solid #CFCFCF;
-  border-radius: 8px;
-`;
-
-const NetworkLabel = styled.div`
-  font-size: 0.875rem;
-  color: #6c757d;
-  padding: 1rem;
-`;
-
-const NetworkTitleContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-bottom: 1px solid #CFCFCF;
-  padding: 0.8rem;
-`
-
-const WifiIcon = styled.div`
-  width: 1.5rem;
-  height: 1.5rem;
-  flex-shrink: 0;
-  background-image: url(${wifiIcon});
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-`;
-
-const NetworkName = styled.div`
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #212529;
-  padding: 1rem;
-`;
-
-const CheckboxContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-`;
-
-const Checkbox = styled.input`
-  width: 18px;
-  height: 18px;
-  margin-right: 0.75rem;
-  accent-color: #007bff;
-`;
-
-const CheckboxLabel = styled.label`
-  font-size: 1rem;
-  color: #212529;
-`;
-
 const ButtonContainer = styled.div`
   border-top: 1px solid #CFCFCF;
   display: flex;
@@ -475,77 +340,4 @@ const DeviceInfoCard = styled.div`
   border-radius: 8px;
   margin-bottom: 2rem;
   text-align: left;
-`;
-
-const DeviceInfoHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid #CFCFCF;
-  padding: 1.5rem;
-`;
-
-const DeviceInfoTitle = styled.h3`
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #212529;
-  margin: 0;
-  text-align: center;
-`;
-
-const InfoRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1.5rem;
-  
-  &:last-child {
-    border-bottom: none;
-  }
-`;
-
-const InfoLabel = styled.span`
-  font-size: 1rem;
-  color: #6c757d;
-`;
-
-const InfoValue = styled.span`
-  font-size: 1rem;
-  font-weight: 600;
-  color: #212529;
-`;
-
-const BackToAutoButton = styled.p`
-  background: none;
-  border: none;
-  font-size: 1rem;
-  margin-bottom: 1rem;
-  text-align: center;
-  border-top: 1px solid #CFCFCF;
-  padding-top: 1.5rem;
-`;
-
-const QRCodeButton = styled.button`
-  background: none;
-  border: 1px solid #6c757d;
-  color: #6c757d;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.875rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0 auto 2rem;
-  
-  &:hover {
-    background-color: #f8f9fa;
-  }
-`;
-
-const AutoMoveText = styled.p`
-  font-size: 0.875rem;
-  color: #6c757d;
-  font-style: italic;
 `;
