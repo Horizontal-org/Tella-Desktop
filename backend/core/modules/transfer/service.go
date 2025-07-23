@@ -155,6 +155,13 @@ func (s *service) HandleUpload(sessionID, transmissionID, fileID string, reader 
 		return transferutils.ErrTransferComplete
 	}
 
+	runtime.EventsEmit(s.ctx, "file-receiving", map[string]interface{}{
+		"sessionId": sessionID,
+		"fileId":    fileID,
+		"fileName":  fileName,
+		"fileSize":  transfer.FileInfo.Size,
+	})
+
 	metadata, err := s.fileService.StoreFile(folderID, fileName, mimeType, reader)
 	if err != nil {
 		transfer.Status = "failed"
@@ -164,6 +171,13 @@ func (s *service) HandleUpload(sessionID, transmissionID, fileID string, reader 
 
 	transfer.Status = "completed"
 	s.transfers.Store(fileID, transfer)
+
+	runtime.EventsEmit(s.ctx, "file-received", map[string]interface{}{
+		"sessionId": sessionID,
+		"fileId":    fileID,
+		"fileName":  fileName,
+		"fileSize":  transfer.FileInfo.Size,
+	})
 
 	fmt.Printf("File stored successfully. ID: %s, Name: %s", metadata.UUID, metadata.Name)
 	return nil

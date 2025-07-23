@@ -7,10 +7,26 @@ import { CertificateVerificationModal } from "../CertificateHash/CertificateVeri
 import styled from 'styled-components';
 import { FileReceiving } from "../FileReceiving/FileReceiving";
 import { FileRequest } from "../FileRequest/FileRequest";
+import wifiIcon from "../../assets/images/icons/wifi-icon.svg"
 
 const SERVER_PORT = 53317;
 
 type FlowStep = 'intro' | 'connect' | 'accept' | 'receive' | 'results';
+
+interface FileInfo {
+  id: string;
+  fileName: string;
+  size: number;
+  fileType: string;
+}
+
+interface TransferData {
+  sessionId: string;
+  title: string;
+  files: FileInfo[];
+  totalFiles: number;
+  totalSize: number;
+}
 
 export function NearbySharing() {
   const navigate = useNavigate();
@@ -20,38 +36,49 @@ export function NearbySharing() {
   const [isWifiConfirmed, setIsWifiConfirmed] = useState(false);
   const [localIPs, setLocalIPs] = useState<string[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
+  const [transferData, setTransferData] = useState<TransferData | null>(null);
 
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [certificateHash, setCertificateHash] = useState<string>('');
 
   useEffect(() => {
-  const fetchNetworkInfo = async () => {
-    try {
-      const ips = await GetLocalIPs();
-      setLocalIPs(ips);
-      setWifiNetwork('dontstealmywifi');
-    } catch (error) {
-      console.error('Failed to get network info:', error);
-    }
-  };
+    const fetchNetworkInfo = async () => {
+      try {
+        const ips = await GetLocalIPs();
+        setLocalIPs(ips);
+        setWifiNetwork('dontstealmywifi');
+      } catch (error) {
+        console.error('Failed to get network info:', error);
+      }
+    };
 
-  fetchNetworkInfo();
+    fetchNetworkInfo();
 
-  const cleanupPingListener = EventsOn("ping-received", (data) => {
-    console.log("Ping received from iOS device:", data);
-    setShowVerificationModal(true);
-  });
+    const cleanupPingListener = EventsOn("ping-received", (data) => {
+      console.log("Ping received from iOS device:", data);
+      setShowVerificationModal(true);
+    });
 
-  const cleanupCertListener = EventsOn("certificate-hash", (data) => {
-    console.log("Certificate hash received:", data);
-    setCertificateHash(data.toString());
-  });
+    const cleanupCertListener = EventsOn("certificate-hash", (data) => {
+      console.log("Certificate hash received:", data);
+      setCertificateHash(data.toString());
+    });
 
-  return () => {
-    cleanupPingListener();
-    cleanupCertListener();
-  };
-}, []);
+    // Listen for prepare-upload-request to capture transfer data
+    const cleanupPrepareRequest = EventsOn("prepare-upload-request", (data) => {
+      console.log("📨 Received prepare upload request in parent:", data);
+      const requestData = data as TransferData;
+      setTransferData(requestData);
+      setCurrentSessionId(requestData.sessionId);
+      // Don't automatically change step here - let FileRequest component handle it
+    });
+
+    return () => {
+      cleanupPingListener();
+      cleanupCertListener();
+      cleanupPrepareRequest();
+    };
+  }, []);
 
   const handleVerificationConfirm = () => {
     console.log("✅ Certificate verification CONFIRMED");
@@ -72,11 +99,11 @@ export function NearbySharing() {
     }
     
     setCurrentSessionId('');
+    setTransferData(null);
     setIsWifiConfirmed(false);
     setShowVerificationModal(false);
     setCertificateHash('');
     
-
     navigate('/');
   };
 
@@ -104,22 +131,27 @@ export function NearbySharing() {
   };
 
   const handleFileRequestAccept = (sessionId: string) => {
+    console.log("📝 File request accepted for session:", sessionId);
     setCurrentSessionId(sessionId);
     setCurrentStep('receive');
   };
 
   const handleFileRequestReject = () => {
+    console.log("❌ File request rejected");
+    setTransferData(null);
+    setCurrentSessionId('');
     setCurrentStep('connect');
   };
 
   const handleFileReceiving = () => {
+    console.log("📥 File receiving started");
     setCurrentStep('receive');
   };
 
   const handleReceiveComplete = () => {
+    console.log("✅ File receiving completed");
     setCurrentStep('results');
   };
-
 
   const renderStepIndicator = () => {
     const steps = [
@@ -155,7 +187,10 @@ export function NearbySharing() {
       <StepSubtitle>Your Wi-Fi network does not need to be connected to the internet.</StepSubtitle>
       
       <NetworkCard>
-        <NetworkLabel>Your current Wi-Fi network</NetworkLabel>
+        <NetworkTitleContainer>
+          <WifiIcon />
+          <NetworkLabel>Your current Wi-Fi network</NetworkLabel>
+        </NetworkTitleContainer>
         <NetworkName>{wifiNetwork}</NetworkName>
 
         <CheckboxContainer>
@@ -167,13 +202,15 @@ export function NearbySharing() {
           <CheckboxLabel>Yes, we are on the same Wi-Fi network</CheckboxLabel>
         </CheckboxContainer>
 
-        <ContinueButton 
+       <ButtonContainer>
+         <ContinueButton 
           onClick={handleContinue}
           disabled={!isWifiConfirmed}
           $isActive={isWifiConfirmed}
         >
           CONTINUE
         </ContinueButton>
+       </ButtonContainer>
       </NetworkCard>
     </StepContent>
   );
@@ -188,7 +225,7 @@ export function NearbySharing() {
         </DeviceInfoHeader>
         
         <InfoRow>
-          <InfoLabel>Connect code</InfoLabel>
+          <InfoLabel>IP ADDRESS</InfoLabel>
           <InfoValue>{localIPs}</InfoValue>
         </InfoRow>
         
@@ -201,7 +238,6 @@ export function NearbySharing() {
           <InfoLabel>Port</InfoLabel>
           <InfoValue>{SERVER_PORT}</InfoValue>
         </InfoRow>
-      
 
         <BackToAutoButton>
           Go back to automatic connection
@@ -216,6 +252,28 @@ export function NearbySharing() {
         You will automatically move to the next screen as soon as the connection with the sender is established.
       </AutoMoveText>
     </StepContent>
+  );
+
+  const renderResultsStep = () => (
+    <DeviceInfoCard>
+      <ResultHeaderContainer>
+        <CheckIcon>✓</CheckIcon>
+      </ResultHeaderContainer>
+      <ResultContent>
+        <StepTitle>Success!</StepTitle>
+        <StepSubtitle>
+          {transferData?.totalFiles} files were successfully received and saved to the folder {transferData?.title}
+        </StepSubtitle>
+      </ResultContent>
+      <ButtonContainer>
+        <ContinueButton 
+          onClick={() => navigate('/')}
+          $isActive={true}
+        >
+          VIEW FILES
+        </ContinueButton>
+      </ButtonContainer>
+    </DeviceInfoCard>
   );
 
   return (
@@ -239,12 +297,17 @@ export function NearbySharing() {
             onReceiving={handleFileReceiving}
           />
         )}
-        {currentStep === 'receive' && (
+        {currentStep === 'receive' && transferData && (
           <FileReceiving 
             sessionId={currentSessionId}
+            transferTitle={transferData.title}
+            totalFiles={transferData.totalFiles}
+            totalSize={transferData.totalSize}
+            files={transferData.files}
             onComplete={handleReceiveComplete}
           />
         )}
+        {currentStep === 'results' && renderResultsStep()}
       </MainContent>
 
       <CertificateVerificationModal
@@ -253,7 +316,6 @@ export function NearbySharing() {
         onConfirm={handleVerificationConfirm}
         onDiscard={handleVerificationDiscard}
       />
-
     </Container>
   );
 }
@@ -273,7 +335,7 @@ const Header = styled.div`
   position: relative;
   padding: 1rem 2rem;
   background-color: white;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid #CFCFCF;
 `;
 
 const BackButton = styled.button`
@@ -305,7 +367,7 @@ const StepIndicator = styled.div`
   justify-content: center;
   padding: 2rem;
   background-color: white;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid #CFCFCF;
 `;
 
 const StepItem = styled.div`
@@ -340,7 +402,7 @@ const StepCircle = styled.div<{ $isActive: boolean; $isCompleted: boolean }>`
       `;
     } else {
       return `
-        background-color: #e9ecef;
+        background-color: #CFCFCF;
         color: #6c757d;
       `;
     }
@@ -362,7 +424,7 @@ const StepConnector = styled.div`
   left: 100%;
   width: 100px;
   height: 1px;
-  background-color: #e9ecef;
+  background-color: #CFCFCF;
   z-index: -1;
 `;
 
@@ -394,20 +456,45 @@ const StepSubtitle = styled.p`
   margin-bottom: 2rem;
 `;
 
-const NetworkCard = styled.div`
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 1.5rem;
-  margin-bottom: 2rem;
+const ResultHeaderContainer = styled.div`
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #CFCFCF;
+  padding: 1rem;
+`
+
+const ResultContent = styled.div`
+  text-align: center;
+  padding: 1.5rem 2rem;
+`
+
+const NetworkCard = styled.div`
+  border: 1px solid #CFCFCF;
+  border-radius: 8px;
 `;
 
 const NetworkLabel = styled.div`
   font-size: 0.875rem;
   color: #6c757d;
-  margin-bottom: 0.5rem;
+  padding: 1rem;
+`;
+
+const NetworkTitleContainer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #CFCFCF;
+  padding: 0.8rem;
+`
+
+const WifiIcon = styled.div`
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  background-image: url(${wifiIcon});
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
 `;
 
 const NetworkName = styled.div`
@@ -421,7 +508,7 @@ const CheckboxContainer = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 2rem;
+  padding: 1rem;
 `;
 
 const Checkbox = styled.input`
@@ -435,6 +522,13 @@ const CheckboxLabel = styled.label`
   font-size: 1rem;
   color: #212529;
 `;
+
+const ButtonContainer = styled.div`
+  border-top: 1px solid #CFCFCF;
+  display: flex;
+  justify-content: center;
+  padding: 1rem;
+`
 
 const ContinueButton = styled.button<{ $isActive: boolean }>`
   background-color: #ffffff;
@@ -450,7 +544,7 @@ const ContinueButton = styled.button<{ $isActive: boolean }>`
 `;
 
 const DeviceInfoCard = styled.div`
-  border: 1px solid #e9ecef;
+  border: 1px solid #CFCFCF;
   border-radius: 8px;
   margin-bottom: 2rem;
   text-align: left;
@@ -461,7 +555,7 @@ const DeviceInfoHeader = styled.div`
   align-items: center;
   justify-content: center;
   margin-bottom: 1.5rem;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid #CFCFCF;
   padding: 1.5rem;
 `;
 
@@ -501,7 +595,7 @@ const BackToAutoButton = styled.p`
   font-size: 1rem;
   margin-bottom: 1rem;
   text-align: center;
-  border-top: 1px solid #e9ecef;
+  border-top: 1px solid #CFCFCF;
   padding-top: 1.5rem;
 `;
 
