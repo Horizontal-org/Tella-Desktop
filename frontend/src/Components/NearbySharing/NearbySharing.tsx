@@ -9,6 +9,7 @@ import { FileReceiving } from "../FileReceiving/FileReceiving";
 import { FileRequest } from "../FileRequest/FileRequest";
 import { ConnectStep } from "./Connect";
 import { IntroStep } from "./Intro";
+import { ResultsStep } from "./Results";
 
 const SERVER_PORT = 53317;
 
@@ -158,27 +159,13 @@ export function NearbySharing() {
     setCurrentStep('results');
   };
 
-  const renderResultsStep = () => (
-    <DeviceInfoCard>
-      <ResultHeaderContainer>
-        <CheckIcon>✓</CheckIcon>
-      </ResultHeaderContainer>
-      <ResultContent>
-        <StepTitle>Success!</StepTitle>
-        <StepSubtitle>
-          {transferData?.totalFiles} files were successfully received and saved to the folder {transferData?.title}
-        </StepSubtitle>
-      </ResultContent>
-      <ButtonContainer>
-        <ContinueButton 
-          onClick={() => navigate('/')}
-          $isActive={true}
-        >
-          VIEW FILES
-        </ContinueButton>
-      </ButtonContainer>
-    </DeviceInfoCard>
-  );
+  const handleViewFiles = async () => {
+    console.log("📁 View files clicked - stopping server and navigating");
+    if (serverRunning) {
+      await handleStopServer();
+    }
+    navigate('/');
+  };
 
   return (
     <Container>
@@ -222,7 +209,14 @@ export function NearbySharing() {
             onComplete={handleReceiveComplete}
           />
         )}
-        {currentStep === 'results' && renderResultsStep()}
+        {currentStep === 'results' && (
+          <ResultsStep 
+            totalFiles={transferData?.totalFiles} 
+            folderTitle={transferData?.title}
+            onViewFiles={handleViewFiles} 
+          />
+        
+        )}
       </MainContent>
 
       <CertificateVerificationModal
@@ -276,10 +270,6 @@ const Title = styled.h1`
   margin: 0;
 `;
 
-const CheckIcon = styled.span`
-  font-size: 1rem;
-`;
-
 const MainContent = styled.div`
   flex: 1;
   display: flex;
@@ -287,57 +277,4 @@ const MainContent = styled.div`
   align-items: center;
   padding: 3rem 2rem;
   background-color: white;
-`;
-
-
-const StepTitle = styled.h2`
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: #212529;
-  margin-bottom: 1rem;
-`;
-
-const StepSubtitle = styled.p`
-  font-size: 0.9rem;
-  color: #6c757d;
-  margin-bottom: 2rem;
-`;
-
-const ResultHeaderContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  border-bottom: 1px solid #CFCFCF;
-  padding: 1rem;
-`
-
-const ResultContent = styled.div`
-  text-align: center;
-  padding: 1.5rem 2rem;
-`
-
-const ButtonContainer = styled.div`
-  border-top: 1px solid #CFCFCF;
-  display: flex;
-  justify-content: center;
-  padding: 1rem;
-`
-
-const ContinueButton = styled.button<{ $isActive: boolean }>`
-  background-color: #ffffff;
-  color: #8B8E8F;
-  border: 1px solid #CFCFCF;
-  border-radius: 4px;
-  padding: 0.75rem 5rem;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: ${({ $isActive }) => $isActive ? 'pointer' : 'not-allowed'};
-  transition: background-color 0.2s;
-  opacity: ${({ $isActive }) => $isActive ? '100%' : '36%'}
-`;
-
-const DeviceInfoCard = styled.div`
-  border: 1px solid #CFCFCF;
-  border-radius: 8px;
-  margin-bottom: 2rem;
-  text-align: left;
 `;

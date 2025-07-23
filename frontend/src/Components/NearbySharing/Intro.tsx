@@ -41,7 +41,7 @@ export function IntroStep({
          <ContinueButton 
           onClick={onContinue}
           disabled={!isWifiConfirmed || isStartingServer}
-          $isActive={isWifiConfirmed}
+          $isActive={isWifiConfirmed && !isStartingServer}
         >
           CONTINUE
         </ContinueButton>
