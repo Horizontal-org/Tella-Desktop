@@ -11,4 +11,10 @@ type Service interface {
 
 	// OpenFileByID opens a file by its ID
 	OpenFileByID(id int64) error
+
+	// GetStoredFolders returns a list of folders with file counts
+	GetStoredFolders() ([]FolderInfo, error)
+
+	// GetFilesInFolder returns files in a specific folder
+	GetFilesInFolder(folderID int64) (*FilesInFolderResponse, error)
 }

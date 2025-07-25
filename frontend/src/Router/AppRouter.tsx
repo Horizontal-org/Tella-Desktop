@@ -3,6 +3,7 @@ import { Auth } from '../Components/Auth';
 import { Dashboard } from '../Components/Dashboard';
 import { ProtectedRoute } from '../Components/ProtectedRoute/ProtectedRoute';
 import { NearbySharing } from '../Components/NearbySharing/NearbySharing';
+import { FileList } from '../Components/FileList/FileList';
 
 interface AppRouterProps {
   isAuthenticated: boolean;
@@ -29,6 +30,15 @@ export function AppRouter({ isAuthenticated, onLoginSuccess }: AppRouterProps) {
           element={
             <ProtectedRoute isAuthenticated={isAuthenticated}>
               <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/folder/:folderId" 
+          element={
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <FileList />
             </ProtectedRoute>
           } 
         />

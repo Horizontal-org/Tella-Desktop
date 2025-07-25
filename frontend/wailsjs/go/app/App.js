@@ -14,6 +14,10 @@ export function CreatePassword(arg1) {
   return window['go']['app']['App']['CreatePassword'](arg1);
 }
 
+export function GetFilesInFolder(arg1) {
+  return window['go']['app']['App']['GetFilesInFolder'](arg1);
+}
+
 export function GetLocalIPs() {
   return window['go']['app']['App']['GetLocalIPs']();
 }
@@ -24,6 +28,10 @@ export function GetServerPIN() {
 
 export function GetStoredFiles() {
   return window['go']['app']['App']['GetStoredFiles']();
+}
+
+export function GetStoredFolders() {
+  return window['go']['app']['App']['GetStoredFolders']();
 }
 
 export function IsFirstTimeSetup() {

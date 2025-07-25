@@ -218,6 +218,20 @@ func (a *App) OpenFileByID(id int64) error {
 	return a.fileService.OpenFileByID(id)
 }
 
+func (a *App) GetStoredFolders() ([]filestore.FolderInfo, error) {
+	if a.fileService == nil {
+		return nil, fmt.Errorf("file service not initialized")
+	}
+	return a.fileService.GetStoredFolders()
+}
+
+func (a *App) GetFilesInFolder(folderID int64) (*filestore.FilesInFolderResponse, error) {
+	if a.fileService == nil {
+		return nil, fmt.Errorf("file service not initialized")
+	}
+	return a.fileService.GetFilesInFolder(folderID)
+}
+
 // upload functions
 func (a *App) AcceptTransfer(sessionID string) error {
 	if a.transferService == nil {

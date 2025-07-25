@@ -202,6 +202,80 @@ func (s *service) OpenFileByID(id int64) error {
 	return nil
 }
 
+func (s *service) GetStoredFolders() ([]FolderInfo, error) {
+	rows, err := s.db.Query(`
+		SELECT 
+			f.id, 
+			f.name, 
+			f.created_at,
+			COUNT(files.id) as file_count
+		FROM folders f
+		LEFT JOIN files ON f.id = files.folder_id AND files.is_deleted = 0
+		GROUP BY f.id, f.name, f.created_at
+		HAVING COUNT(files.id) > 0
+		ORDER BY f.created_at DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query folders: %w", err)
+	}
+	defer rows.Close()
+
+	var folders []FolderInfo
+	for rows.Next() {
+		var folder FolderInfo
+		if err := rows.Scan(&folder.ID, &folder.Name, &folder.Timestamp, &folder.FileCount); err != nil {
+			return nil, fmt.Errorf("failed to scan folder: %w", err)
+		}
+		folders = append(folders, folder)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating folders: %w", err)
+	}
+
+	return folders, nil
+}
+
+func (s *service) GetFilesInFolder(folderID int64) (*FilesInFolderResponse, error) {
+	var folderName string
+	err := s.db.QueryRow("SELECT name FROM folders WHERE id = ?", folderID).Scan(&folderName)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("folder not found with ID: %d", folderID)
+		}
+		return nil, fmt.Errorf("failed to get folder name: %w", err)
+	}
+
+	rows, err := s.db.Query(`
+		SELECT id, name, mime_type, created_at, size 
+		FROM files 
+		WHERE folder_id = ? AND is_deleted = 0 
+		ORDER BY created_at DESC
+	`, folderID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query files in folder: %w", err)
+	}
+	defer rows.Close()
+
+	var files []FileInfo
+	for rows.Next() {
+		var file FileInfo
+		if err := rows.Scan(&file.ID, &file.Name, &file.MimeType, &file.Timestamp, &file.Size); err != nil {
+			return nil, fmt.Errorf("failed to scan file: %w", err)
+		}
+		files = append(files, file)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating files: %w", err)
+	}
+
+	return &FilesInFolderResponse{
+		FolderName: folderName,
+		Files:      files,
+	}, nil
+}
+
 func openFileWithDefaultApp(filePath string) error {
 	var cmd *exec.Cmd
 

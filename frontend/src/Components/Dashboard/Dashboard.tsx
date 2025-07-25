@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { FilesList } from '../FileList/FilesList';
+import { FolderList } from '../FolderList/FolderList';
 import styled from 'styled-components';
 
 export function Dashboard() {
@@ -12,14 +12,13 @@ export function Dashboard() {
   return (
     <DashboardContainer>
       <DashboardHeader>
-        <Title>Tella Desktop</Title>
         <NearbyButton onClick={handleNearbySharing}>
           Nearby Sharing
         </NearbyButton>
       </DashboardHeader>
       
       <ContentSection>
-        <FilesList />
+        <FolderList />
       </ContentSection>
     </DashboardContainer>
   );

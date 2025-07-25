@@ -9,11 +9,15 @@ export function ConfirmRegistration():Promise<void>;
 
 export function CreatePassword(arg1:string):Promise<void>;
 
+export function GetFilesInFolder(arg1:number):Promise<filestore.FilesInFolderResponse>;
+
 export function GetLocalIPs():Promise<Array<string>>;
 
 export function GetServerPIN():Promise<string>;
 
 export function GetStoredFiles():Promise<Array<filestore.FileInfo>>;
+
+export function GetStoredFolders():Promise<Array<filestore.FolderInfo>>;
 
 export function IsFirstTimeSetup():Promise<boolean>;
 
