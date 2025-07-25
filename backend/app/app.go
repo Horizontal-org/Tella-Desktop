@@ -142,7 +142,7 @@ func (a *App) initializeDatabase() error {
 	a.fileService = filestore.NewService(a.ctx, db.DB, dbKey)
 	runtime.LogInfo(a.ctx, "File storage service initialized")
 
-	a.transferService = transfer.NewService(a.ctx, a.fileService)
+	a.transferService = transfer.NewService(a.ctx, a.fileService, db.DB)
 	runtime.LogInfo(a.ctx, "Transfer service initialized")
 
 	// Re-initialize transfer and server services with filestore service
