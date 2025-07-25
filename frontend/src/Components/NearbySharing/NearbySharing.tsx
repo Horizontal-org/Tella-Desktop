@@ -192,9 +192,6 @@ const handleVerificationDiscard = async () => {
   return (
     <Container>
       <Header>
-        <BackButton onClick={handleBack}>
-          ← Back {currentStep === 'intro' ? 'to Dashboard' : ''}
-        </BackButton>
         <Title>Nearby Sharing: Receive Files</Title>
       </Header>
 
