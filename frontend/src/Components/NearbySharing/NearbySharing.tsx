@@ -267,19 +267,6 @@ const Header = styled.div`
   border-bottom: 1px solid #CFCFCF;
 `;
 
-const BackButton = styled.button`
-  background: none;
-  border: none;
-  color: #6c757d;
-  cursor: pointer;
-  font-size: 1rem;
-  z-index: 1;
-
-  &:hover {
-    color: #495057;
-  }
-`;
-
 const Title = styled.h1`
   position: absolute;
   left: 50%;

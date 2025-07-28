@@ -49,7 +49,6 @@ export function ConnectStep({ serverRunning, localIPs }: ConnectStepProps) {
   );
 }
 
-// Styled components
 const StepContent = styled.div`
   max-width: 600px;
   width: 100%;

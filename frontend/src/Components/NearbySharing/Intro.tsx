@@ -100,17 +100,18 @@ const WifiIcon = styled.div`
 `;
 
 const NetworkName = styled.div`
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: 600;
   color: #212529;
-  padding: 1rem;
+  padding: 2rem;
 `;
 
 const CheckboxContainer = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #CFCFCF;
 `;
 
 const Checkbox = styled.input`
@@ -126,7 +127,6 @@ const CheckboxLabel = styled.label`
 `;
 
 const ButtonContainer = styled.div`
-  border-top: 1px solid #CFCFCF;
   display: flex;
   justify-content: center;
   padding: 1rem;

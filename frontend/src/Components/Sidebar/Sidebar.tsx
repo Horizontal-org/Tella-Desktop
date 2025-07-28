@@ -1,5 +1,9 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
+import tellaIcon from '../../assets/images/icons/tella-icon.svg'
+import nearbySharingIcon from '../../assets/images/icons/nearby-sharing-icon.svg'
+import receivedIcon from '../../assets/images/icons/received-icon.svg'
+import lockIcon from '../../assets/images/icons/lock-icon.svg'
 
 interface SidebarProps {
   className?: string;
@@ -19,10 +23,13 @@ export function Sidebar({ className }: SidebarProps) {
     return false;
   };
 
+  const handleLock = () => {
+    console.log('Lock button clicked')
+  }
   return (
     <SidebarContainer className={className}>
       <SidebarHeader>
-        <AppTitle>Tella Desktop</AppTitle>
+        <Icon icon='tella' />
       </SidebarHeader>
       
       <Navigation>
@@ -30,40 +37,62 @@ export function Sidebar({ className }: SidebarProps) {
           $isActive={isActive('/')} 
           onClick={() => handleNavigation('/')}
         >
-          <NavText>Received</NavText>
+          <Icon icon='received' />
+          <NavText $isActive={isActive('/')} >Received</NavText>
         </NavItem>
         
         <NavItem 
           $isActive={isActive('/nearby-sharing')} 
           onClick={() => handleNavigation('/nearby-sharing')}
         >
-          <NavText>Nearby Sharing</NavText>
+          <Icon icon='nearbySharing' />
+          <NavText $isActive={isActive('/nearby-sharing')} >Nearby Sharing</NavText>
         </NavItem>
       </Navigation>
+
+      <LockButton onClick={handleLock}>
+        <Icon icon='lock' />
+        <LockText>Lock</LockText>
+      </LockButton>
     </SidebarContainer>
   );
 }
 
 const SidebarContainer = styled.div`
-  width: 280px;
-  background-color: #f8f9fa;
+  width: 250px;
   border-right: 1px solid #e9ecef;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  padding: 0 1rem;
 `;
 
 const SidebarHeader = styled.div`
   padding: 2rem 1.5rem 1.5rem;
-  border-bottom: 1px solid #e9ecef;
 `;
 
-const AppTitle = styled.h1`
-  color: #212529;
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 700;
+const iconMap = {
+  tella: tellaIcon,
+  nearbySharing: nearbySharingIcon,
+  received: receivedIcon,
+  lock: lockIcon,
+} as const;
+
+type IconName = keyof typeof iconMap;
+
+const Icon = styled.div<{ 
+  icon: IconName;
+  size?: string;
+}>`
+  width: ${({ size }) => size || '1.5rem'};
+  height: ${({ size }) => size || '1.5rem'};
+  flex-shrink: 0;
+  background-image: url(${({ icon }) => iconMap[icon]});
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
 `;
+
 
 const Navigation = styled.nav`
   padding: 1rem 0;
@@ -73,23 +102,43 @@ const Navigation = styled.nav`
 const NavItem = styled.div<{ $isActive: boolean }>`
   display: flex;
   align-items: center;
-  padding: 1rem 1.5rem;
+  padding: 1rem;
+  gap: 0.8rem;
   cursor: pointer;
   transition: all 0.2s ease;
   border-radius: 0;
   margin: 0 0.75rem;
   border-radius: ${({ theme }) => theme.borderRadius.default};
   
-  background-color: ${({ $isActive }) => $isActive ? '#065485' : 'transparent'};
-  color: ${({ $isActive }) => $isActive ? 'white' : '#6c757d'};
+  background-color: ${({ $isActive }) => $isActive ? '#E9F2FF' : 'transparent'};
+  color: ${({ $isActive }) => $isActive ? '#065485' : '#404040'};
+`;
+
+const NavText = styled.span<{ $isActive: boolean }>`
+  font-size: 1rem;
+  font-weight: 700;
+  border-bottom:  ${({ $isActive }) => $isActive ? '2px solid #065485' : 'none'};
+`;
+
+const LockButton = styled.button`
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  gap: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid #CFCFCF;
+  background: transparent;
+  margin: 0 0.75rem 1rem;
+  border-radius: ${({ theme }) => theme.borderRadius.default};
+  color: #595959;
   
   &:hover {
-    background-color: ${({ $isActive }) => $isActive ? '#054a7a' : '#e9ecef'};
-    transform: ${({ $isActive }) => $isActive ? 'none' : 'translateX(4px)'};
+    background-color: #f8f9fa;
   }
 `;
 
-const NavText = styled.span`
+const LockText = styled.span`
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 700;
 `;
