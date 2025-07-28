@@ -37,6 +37,6 @@ const MainContent = styled.div`
 
 const ContentSection = styled.div`
   flex: 1;
-  padding: 2rem;
+  padding: 1rem;
   overflow-y: auto;
 `;

@@ -1,8 +1,35 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GetStoredFolders } from '../../../wailsjs/go/app/App';
-import styled from 'styled-components';
-import folderIcon from '../../assets/images/icons/folder-icon.svg';
+import {
+  FoldersContainer,
+  FoldersHeader,
+  HeaderTitle,
+  ToolbarContainer,
+  ToolbarActions,
+  ExportButton,
+  DeleteButton,
+  ExportIcon,
+  DeleteIcon,
+  TableContainer,
+  Table,
+  TableHeader,
+  TableBody,
+  HeaderRow,
+  TableRow,
+  CheckboxCell,
+  NameCell,
+  FilesCell,
+  DateCell,
+  NameHeader,
+  FilesHeader,
+  DateHeader,
+  FolderIcon,
+  FolderName,
+  Checkbox,
+  NoFoldersMessage,
+  RefreshButton
+} from './FolderListStyles';
 
 interface FolderInfo {
   id: number
@@ -14,7 +41,11 @@ interface FolderInfo {
 const formatTimestamp = (timestamp: string): string => {
   try {
     const date = new Date(timestamp);
-    return date.toLocaleString();
+    return date.toLocaleDateString('en-US', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
   } catch (error) {
     return timestamp
   }
@@ -25,7 +56,7 @@ export function FolderList() {
   const [folders, setFolders] = useState<FolderInfo[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
+  const [selectedFolders, setSelectedFolders] = useState<Set<number>>(new Set());
   const fetchFolders = async () => {
     try {
       setLoading(true);
@@ -44,9 +75,49 @@ export function FolderList() {
     fetchFolders();
   }, []);
 
-  const handleFolderClick = (folderId: number) => {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedFolders(new Set());
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const handleFolderClick = (folderId: number, event: React.MouseEvent) => {
+    if (selectedFolders.has(folderId) && selectedFolders.size === 1) {
+      setSelectedFolders(new Set());
+    } else {
+      setSelectedFolders(new Set([folderId]));
+    }
+  };
+
+  const handleFolderDoubleClick = (folderId: number) => {
     navigate(`/folder/${folderId}`);
   };
+
+  const handleCheckboxChange = (folderId: number, checked: boolean) => {
+    const newSelected = new Set(selectedFolders);
+    if (checked) {
+      newSelected.add(folderId);
+    } else {
+      newSelected.delete(folderId);
+    }
+    setSelectedFolders(newSelected);
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedFolders(new Set(folders.map(f => f.id)));
+    } else {
+      setSelectedFolders(new Set());
+    }
+  };
+
+  const isAllSelected = folders.length > 0 && selectedFolders.size === folders.length;
+  const isIndeterminate = selectedFolders.size > 0 && selectedFolders.size < folders.length;
 
   if (loading) {
     return <FoldersContainer>Loading folders...</FoldersContainer>;
@@ -69,129 +140,73 @@ export function FolderList() {
 
   return (
     <FoldersContainer>
-      <FoldersHeader>Received</FoldersHeader>
+      <FoldersHeader>
+        <HeaderTitle>Received</HeaderTitle>
+      </FoldersHeader>
       
-      <FoldersGrid>
-        {folders.map((folder) => (
-          <FolderCard 
-            key={folder.id} 
-            onClick={() => handleFolderClick(folder.id)}
-          >
-            <FolderIcon />
-            <FolderInfo>
-              <FolderName>{folder.name}</FolderName>
-              <FolderMeta>
-                <FileCount>{folder.fileCount} files</FileCount>
-                <FolderDate>{formatTimestamp(folder.timestamp)}</FolderDate>
-              </FolderMeta>
-            </FolderInfo>
-          </FolderCard>
-        ))}
-      </FoldersGrid>
+      <ToolbarContainer $isVisible={selectedFolders.size > 0}>
+        <ToolbarActions>
+          <ExportButton>
+            <ExportIcon />
+            EXPORT AS ZIP
+          </ExportButton>
+          <DeleteButton>
+            <DeleteIcon />
+            DELETE
+          </DeleteButton>
+        </ToolbarActions>
+      </ToolbarContainer>
+      
+      <TableContainer>
+        <Table>
+          <TableHeader>
+            <HeaderRow>
+              <CheckboxCell>
+                <Checkbox
+                  type="checkbox"
+                  checked={isAllSelected}
+                  ref={(input) => {
+                    if (input) input.indeterminate = isIndeterminate;
+                  }}
+                  onChange={(e) => handleSelectAll(e.target.checked)}
+                />
+              </CheckboxCell>
+              <NameHeader>Name</NameHeader>
+              <FilesHeader>Files</FilesHeader>
+              <DateHeader>Date received</DateHeader>
+            </HeaderRow>
+          </TableHeader>
+          <TableBody>
+            {folders.map((folder) => (
+              <TableRow
+                key={folder.id}
+                $isSelected={selectedFolders.has(folder.id)}
+                onClick={(e) => handleFolderClick(folder.id, e)}
+                onDoubleClick={() => handleFolderDoubleClick(folder.id)}
+              >
+                <CheckboxCell>
+                  <Checkbox
+                    type="checkbox"
+                    checked={selectedFolders.has(folder.id)}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      handleCheckboxChange(folder.id, e.target.checked);
+                    }}
+                  />
+                </CheckboxCell>
+                <NameCell>
+                  <FolderIcon />
+                  <FolderName>{folder.name}</FolderName>
+                </NameCell>
+                <FilesCell>{folder.fileCount} files</FilesCell>
+                <DateCell>{formatTimestamp(folder.timestamp)}</DateCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </FoldersContainer>
   );
 }
-
-const FoldersContainer = styled.div`
-  padding: 1rem;
-  margin-bottom: 1.5rem;
-`;
-
-const FoldersHeader = styled.h2`
-  color: ${({ theme }) => theme.colors.darkGray};
-  margin-bottom: 1rem;
-`;
-
-const FoldersGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
-`;
-
-const FolderCard = styled.div`
-  display: flex;
-  align-items: center;
-  padding: 1rem;
-  background-color: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: ${({ theme }) => theme.borderRadius.default};
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: rgba(255, 255, 255, 0.05);
-    border-color: ${({ theme }) => theme.colors.primary};
-    transform: translateY(-2px);
-  }
-`;
-
-const FolderIcon = styled.div`
-  width: 48px;
-  height: 48px;
-  flex-shrink: 0;
-  background-image: url(${folderIcon});
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  margin-right: 1rem;
-`;
-
-const FolderInfo = styled.div`
-  flex: 1;
-  min-width: 0;
-`;
-
-const FolderName = styled.h3`
-  color: ${({ theme }) => theme.colors.darkGray};
-  margin: 0 0 0.5rem 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
-
-const FolderMeta = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-`;
-
-const FileCount = styled.span`
-  color: ${({ theme }) => theme.colors.lightGray};
-  font-size: 0.9rem;
-  font-weight: 500;
-`;
-
-const FolderDate = styled.span`
-  color: ${({ theme }) => theme.colors.lightGray};
-  font-size: 0.8rem;
-  opacity: 0.8;
-`;
-
-const NoFoldersMessage = styled.div`
-  padding: 2rem 1rem;
-  text-align: center;
-  color: ${({ theme }) => theme.colors.lightGray};
-  background-color: rgba(255, 255, 255, 0.02);
-  border-radius: ${({ theme }) => theme.borderRadius.default};
-  border: 1px dashed rgba(255, 255, 255, 0.2);
-`;
-
-const RefreshButton = styled.button`
-  padding: 0.5rem 1rem;
-  background-color: ${({ theme }) => theme.colors.primary};
-  color: white;
-  border: none;
-  border-radius: ${({ theme }) => theme.borderRadius.default};
-  cursor: pointer;
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
-  
-  &:hover {
-    background-color: #1e56c9;
-  }
-`;
 
 export default FolderList;
