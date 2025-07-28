@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GetStoredFolders } from '../../../wailsjs/go/app/App';
 import {
-  FoldersContainer,
-  FoldersHeader,
+  Container,
+  Header,
   HeaderTitle,
   ToolbarContainer,
   ToolbarActions,
@@ -27,9 +27,9 @@ import {
   FolderIcon,
   FolderName,
   Checkbox,
-  NoFoldersMessage,
+  NoItemsMessage,
   RefreshButton
-} from './FolderListStyles';
+} from '../../styles/TableStyles';
 
 interface FolderInfo {
   id: number
@@ -57,6 +57,7 @@ export function FolderList() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedFolders, setSelectedFolders] = useState<Set<number>>(new Set());
+  
   const fetchFolders = async () => {
     try {
       setLoading(true);
@@ -120,29 +121,29 @@ export function FolderList() {
   const isIndeterminate = selectedFolders.size > 0 && selectedFolders.size < folders.length;
 
   if (loading) {
-    return <FoldersContainer>Loading folders...</FoldersContainer>;
+    return <Container>Loading folders...</Container>;
   }
 
   if (error) {
-    return <FoldersContainer>{error}</FoldersContainer>;
+    return <Container>{error}</Container>;
   }
   
   if (!folders || folders.length === 0) {
     return (
-      <FoldersContainer>
+      <Container>
         <RefreshButton onClick={fetchFolders}>Refresh Folders</RefreshButton>
-        <NoFoldersMessage>
+        <NoItemsMessage>
           No folders found. Receive files via Nearby Sharing to see them organized in folders here.
-        </NoFoldersMessage>
-      </FoldersContainer>
+        </NoItemsMessage>
+      </Container>
     );
   }
 
   return (
-    <FoldersContainer>
-      <FoldersHeader>
+    <Container>
+      <Header>
         <HeaderTitle>Received</HeaderTitle>
-      </FoldersHeader>
+      </Header>
       
       <ToolbarContainer $isVisible={selectedFolders.size > 0}>
         <ToolbarActions>
@@ -205,7 +206,7 @@ export function FolderList() {
           </TableBody>
         </Table>
       </TableContainer>
-    </FoldersContainer>
+    </Container>
   );
 }
 
