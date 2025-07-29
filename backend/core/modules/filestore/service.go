@@ -276,6 +276,64 @@ func (s *service) GetFilesInFolder(folderID int64) (*FilesInFolderResponse, erro
 	}, nil
 }
 
+func (s *service) ExportFiles(ids []int64) ([]string, error) {
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("no file IDs provided")
+	}
+
+	if len(ids) == 1 {
+		fmt.Printf("Exporting single file with ID: %d", ids[0])
+	} else {
+		fmt.Printf("Exporting %d files in batch", len(ids))
+	}
+
+	var exportedPaths []string
+	var failedFiles []string
+
+	// Get export directory once
+	exportDir := authutils.GetExportDir()
+
+	// Open TVault once for all operations
+	tvault, err := os.Open(s.tvaultPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open TVault: %w", err)
+	}
+	defer tvault.Close()
+
+	for _, id := range ids {
+		// Export each file individually
+		exportPath, err := s.exportSingleFile(id, tvault, exportDir)
+		if err != nil {
+			fmt.Printf("Failed to export file ID %d: %v", id, err)
+			failedFiles = append(failedFiles, fmt.Sprintf("ID %d", id))
+			continue
+		}
+
+		exportedPaths = append(exportedPaths, exportPath)
+		if len(ids) == 1 {
+			fmt.Printf("File exported successfully to: %s", exportPath)
+		} else {
+			fmt.Printf("File ID %d exported successfully to: %s", id, exportPath)
+		}
+	}
+
+	// Return results with error info if some files failed
+	if len(failedFiles) > 0 {
+		if len(exportedPaths) == 0 {
+			return nil, fmt.Errorf("all files failed to export: %v", failedFiles)
+		}
+		fmt.Printf("Warning: Some files failed to export: %v", failedFiles)
+	}
+
+	if len(ids) == 1 {
+		fmt.Printf("Export completed successfully")
+	} else {
+		fmt.Printf("Batch export completed: %d/%d files exported successfully", len(exportedPaths), len(ids))
+	}
+
+	return exportedPaths, nil
+}
+
 func openFileWithDefaultApp(filePath string) error {
 	var cmd *exec.Cmd
 
@@ -341,4 +399,49 @@ func createUniqueFilename(dir, fileName string) string {
 
 		counter++
 	}
+}
+
+func (s *service) exportSingleFile(id int64, tvault *os.File, exportDir string) (string, error) {
+	metadata, err := s.getFileMetadataByID(id)
+	if err != nil {
+		return "", err
+	}
+
+	// Read encrypted data from TVault
+	encryptedData := make([]byte, metadata.Length)
+	_, err = tvault.ReadAt(encryptedData, metadata.Offset)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file from TVault: %w", err)
+	}
+
+	// Generate file key and decrypt
+	fileKey := filestoreutils.GenerateFileKey(metadata.UUID, s.dbKey)
+	decryptedData, err := authutils.DecryptData(encryptedData, fileKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt file: %w", err)
+	}
+
+	// Create unique filename in export directory
+	exportPath := createUniqueFilename(exportDir, metadata.Name)
+
+	// Create the exported file
+	exportFile, err := os.Create(exportPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create export file: %w", err)
+	}
+	defer exportFile.Close()
+
+	// Write decrypted data to export file
+	_, err = exportFile.Write(decryptedData)
+	if err != nil {
+		return "", fmt.Errorf("failed to write to export file: %w", err)
+	}
+
+	// Set appropriate file permissions
+	err = os.Chmod(exportPath, 0644)
+	if err != nil {
+		fmt.Printf("Failed to set file permissions for %s: %v", exportPath, err)
+	}
+
+	return exportPath, nil
 }

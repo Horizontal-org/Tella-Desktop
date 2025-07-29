@@ -14,6 +14,10 @@ export function CreatePassword(arg1) {
   return window['go']['app']['App']['CreatePassword'](arg1);
 }
 
+export function ExportFiles(arg1) {
+  return window['go']['app']['App']['ExportFiles'](arg1);
+}
+
 export function GetFilesInFolder(arg1) {
   return window['go']['app']['App']['GetFilesInFolder'](arg1);
 }

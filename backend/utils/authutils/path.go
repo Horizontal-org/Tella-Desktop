@@ -63,3 +63,18 @@ func GetTempDir() string {
 
 	return dir
 }
+
+func GetExportDir() string {
+	downloadDir := xdg.UserDirs.Download
+
+	exportDir := filepath.Join(downloadDir, TellaAppName)
+
+	if err := os.MkdirAll(exportDir, 0755); err != nil {
+		// Fallback to current directory if Downloads is not accessible
+		fallbackDir := filepath.Join(".", "exports")
+		os.MkdirAll(fallbackDir, 0755)
+		return fallbackDir
+	}
+
+	return exportDir
+}

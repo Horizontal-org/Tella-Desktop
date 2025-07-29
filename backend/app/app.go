@@ -232,6 +232,13 @@ func (a *App) GetFilesInFolder(folderID int64) (*filestore.FilesInFolderResponse
 	return a.fileService.GetFilesInFolder(folderID)
 }
 
+func (a *App) ExportFiles(ids []int64) ([]string, error) {
+	if a.fileService == nil {
+		return nil, fmt.Errorf("file service not initialized")
+	}
+	return a.fileService.ExportFiles(ids)
+}
+
 // upload functions
 func (a *App) AcceptTransfer(sessionID string) error {
 	if a.transferService == nil {

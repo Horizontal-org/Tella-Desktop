@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { GetFilesInFolder } from '../../../wailsjs/go/app/App';
+import { useParams } from 'react-router-dom';
+import { GetFilesInFolder, ExportFiles } from '../../../wailsjs/go/app/App';
+import { Dialog } from '../Dialog/Dialog';
+import { LoadingDialog } from '../Dialog/LoadingDialog';
+import { SuccessToast } from '../Toast/SuccessToast';
 import {
   Container,
   Header,
@@ -87,7 +90,6 @@ interface FileListProps {
 
 export function FileList({ folderId: propFolderId, folderName: propFolderName }: FileListProps) {
   const { folderId: paramFolderId } = useParams<{ folderId: string }>();
-  const navigate = useNavigate();
   
   const folderId = propFolderId || (paramFolderId ? parseInt(paramFolderId, 10) : null);
   
@@ -96,6 +98,14 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<Set<number>>(new Set());
+
+  // Export dialog states
+  const [showExportDialog, setShowExportDialog] = useState<boolean>(false);
+  const [showExportZipDialog, setShowExportZipDialog] = useState<boolean>(false);
+  const [showExportLoading, setShowExportLoading] = useState<boolean>(false);
+  const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
+  const [successMessage, setSuccessMessage] = useState<string>('');
+  const [isExporting, setIsExporting] = useState<boolean>(false);
 
   const fetchFiles = async () => {
     if (!folderId) {
@@ -159,6 +169,56 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
     }
   };
 
+  const handleExportClick = () => {
+    if (selectedFiles.size === 0) return;
+    setShowExportDialog(true);
+  };
+
+  const handleExportZipClick = () => {
+    if (selectedFiles.size <= 1) return;
+    setShowExportZipDialog(true);
+  };
+
+  const handleExportConfirm = async () => {
+    if (selectedFiles.size === 0) return;
+    
+    setIsExporting(true);
+    
+    setShowExportDialog(false);
+    setShowExportZipDialog(false);
+    setShowExportLoading(true);
+    
+    try {
+      const fileIds = Array.from(selectedFiles);
+      
+      const exportPaths = await ExportFiles(fileIds);
+      
+      if (fileIds.length === 1) {
+        setSuccessMessage(`File exported successfully to: ${exportPaths[0]}`);
+      } else {
+        const exportDir = exportPaths[0].substring(0, exportPaths[0].lastIndexOf('/'));
+        setSuccessMessage(`${exportPaths.length} files exported successfully to: ${exportDir}`);
+      }
+      
+      setSelectedFiles(new Set());
+      setShowSuccessToast(true);
+      
+    } catch (error) {
+      console.error('Export failed:', error);
+      setSuccessMessage('Export failed. Please try again.');
+      setShowSuccessToast(true);
+    } finally {
+      setIsExporting(false);
+      setShowExportLoading(false);
+    }
+  };
+
+  const handleExportCancel = () => {
+    setShowExportDialog(false);
+    setShowExportZipDialog(false);
+  };
+
+
   const isAllSelected = files.length > 0 && selectedFiles.size === files.length;
   const isIndeterminate = selectedFiles.size > 0 && selectedFiles.size < files.length;
 
@@ -205,12 +265,12 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
       
       <ToolbarContainer $isVisible={selectedFiles.size > 0}>
         <ToolbarActions>
-          <ExportButton>
+          <ExportButton onClick={handleExportClick}>
             <ExportFileIcon />
             EXPORT
           </ExportButton>
           {selectedFiles.size > 1 && (
-            <ExportZipButton>
+            <ExportZipButton onClick={handleExportZipClick}>
               <ExportIcon />
               EXPORT AS ZIP
             </ExportZipButton>
@@ -269,6 +329,49 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
           </TableBody>
         </Table>
       </TableContainer>
+
+      <Dialog
+        isOpen={showExportDialog}
+        onClose={handleExportCancel}
+        onExport={handleExportConfirm}
+        title={selectedFiles.size === 1 ? "Export file?" : `Export ${selectedFiles.size} files?`}
+      >
+        <p>
+          Exporting {selectedFiles.size === 1 ? 'this file' : `these ${selectedFiles.size} files`} will create {selectedFiles.size === 1 ? 'a copy' : 'copies'} that {selectedFiles.size === 1 ? 'is' : 'are'} accessible, 
+          unencrypted, outside of Tella.
+        </p>
+        <p>
+          Remember that for now, it is not possible to re-import files 
+          from your computer into Tella Desktop.
+        </p>
+      </Dialog>
+
+      <Dialog
+        isOpen={showExportZipDialog}
+        onClose={handleExportCancel}
+        onExport={handleExportConfirm}
+        title="Export files as ZIP?"
+      >
+        <p>
+          Exporting these {selectedFiles.size} files will create a ZIP archive 
+          that is accessible, unencrypted, outside of Tella.
+        </p>
+        <p>
+          Remember that for now, it is not possible to re-import files 
+          from your computer into Tella Desktop.
+        </p>
+      </Dialog>
+
+      <LoadingDialog
+        isOpen={showExportLoading}
+        onCancel={handleExportCancel}
+      />
+
+      <SuccessToast
+        isVisible={showSuccessToast}
+        message={successMessage}
+        onClose={() => setShowSuccessToast(false)}
+      />
     </Container>
   );
 }

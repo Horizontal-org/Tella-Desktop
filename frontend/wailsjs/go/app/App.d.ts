@@ -9,6 +9,8 @@ export function ConfirmRegistration():Promise<void>;
 
 export function CreatePassword(arg1:string):Promise<void>;
 
+export function ExportFiles(arg1:Array<number>):Promise<Array<string>>;
+
 export function GetFilesInFolder(arg1:number):Promise<filestore.FilesInFolderResponse>;
 
 export function GetLocalIPs():Promise<Array<string>>;

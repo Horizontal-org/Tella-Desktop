@@ -17,4 +17,7 @@ type Service interface {
 
 	// GetFilesInFolder returns files in a specific folder
 	GetFilesInFolder(folderID int64) (*FilesInFolderResponse, error)
+
+	// ExportFile exports a file by its ID to the user's downloads directory
+	ExportFiles(ids []int64) ([]string, error)
 }
