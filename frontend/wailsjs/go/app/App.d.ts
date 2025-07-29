@@ -9,6 +9,10 @@ export function ConfirmRegistration():Promise<void>;
 
 export function CreatePassword(arg1:string):Promise<void>;
 
+export function DeleteFiles(arg1:Array<number>):Promise<void>;
+
+export function DeleteFolders(arg1:Array<number>):Promise<void>;
+
 export function ExportFiles(arg1:Array<number>):Promise<Array<string>>;
 
 export function ExportZipFolders(arg1:Array<number>,arg2:Array<number>):Promise<Array<string>>;

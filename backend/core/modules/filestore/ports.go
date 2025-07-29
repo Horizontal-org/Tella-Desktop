@@ -23,4 +23,10 @@ type Service interface {
 
 	// ExportZipFolders exports files as ZIP archives
 	ExportZipFolders(folderIDs []int64, selectedFileIDs []int64) ([]string, error)
+
+	// DeleteFiles securely deletes files by their IDs
+	DeleteFiles(ids []int64) error
+
+	// DeleteFolders deletes folders and all their files by reusing DeleteFiles
+	DeleteFolders(folderIDs []int64) error
 }

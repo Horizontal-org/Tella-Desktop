@@ -4,8 +4,11 @@ import styled from 'styled-components';
 interface DialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: () => void;
+  onConfirm: () => void;
   title: string;
+  confirmButtonText?: string;
+  cancelButtonText?: string;
+  confirmButtonType?: 'primary' | 'danger';
   children: React.ReactNode;
 }
 
@@ -92,18 +95,27 @@ const CancelButton = styled(Button)`
   }
 `;
 
-const ExportButton = styled(Button)`
-  background-color: #28a745;
+const ConfirmButton = styled(Button)<{ $buttonType: 'primary' | 'danger' }>`
+  background-color: ${props => props.$buttonType === 'danger' ? '#dc3545' : '#28a745'};
   color: white;
-  border-color: #28a745;
+  border-color: ${props => props.$buttonType === 'danger' ? '#dc3545' : '#28a745'};
   
   &:hover {
-    background-color: #218838;
-    border-color: #1e7e34;
+    background-color: ${props => props.$buttonType === 'danger' ? '#c82333' : '#218838'};
+    border-color: ${props => props.$buttonType === 'danger' ? '#bd2130' : '#1e7e34'};
   }
 `;
 
-export function Dialog({ isOpen, onClose, onExport, title, children }: DialogProps) {
+export function Dialog({ 
+  isOpen, 
+  onClose, 
+  onConfirm, 
+  title, 
+  confirmButtonText = 'CONFIRM',
+  cancelButtonText = 'CANCEL',
+  confirmButtonType = 'primary',
+  children 
+ }: DialogProps) {
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       onClose();
@@ -115,7 +127,7 @@ export function Dialog({ isOpen, onClose, onExport, title, children }: DialogPro
       onClose();
     }
     if (e.key === 'Enter') {
-      onExport();
+      onConfirm();
     }
   };
 
@@ -137,11 +149,14 @@ export function Dialog({ isOpen, onClose, onExport, title, children }: DialogPro
         
         <DialogFooter>
           <CancelButton onClick={onClose}>
-            Cancel
+            {cancelButtonText}
           </CancelButton>
-          <ExportButton onClick={onExport}>
-            Export
-          </ExportButton>
+          <ConfirmButton 
+            $buttonType={confirmButtonType}
+            onClick={onConfirm}
+          >
+            {confirmButtonText}
+          </ConfirmButton>
         </DialogFooter>
       </DialogContainer>
     </Overlay>

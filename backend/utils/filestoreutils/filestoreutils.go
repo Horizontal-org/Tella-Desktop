@@ -3,6 +3,7 @@ package filestoreutils
 import (
 	"Tella-Desktop/backend/utils/authutils"
 	"archive/zip"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // insertFileMetadata adds file metadata to the database
@@ -145,7 +147,7 @@ type FileMetadata struct {
 	FolderID  int64
 	Offset    int64
 	Length    int64
-	CreatedAt string
+	CreatedAt time.Time
 }
 
 // GetFileMetadataByID retrieves file metadata from database by ID
@@ -356,4 +358,108 @@ func RecordTempFile(db *sql.DB, fileID int64, tempPath string) error {
 	`, fileID, tempPath)
 
 	return err
+}
+
+// Delete files
+func SecurelyOverwriteFileData(tvaultPath string, offset, length int64) error {
+	file, err := os.OpenFile(tvaultPath, os.O_WRONLY, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to open TVault for writing: %w", err)
+	}
+	defer file.Close()
+
+	// Generate random data to overwrite the file content
+	randomData := make([]byte, length)
+	if _, err := rand.Read(randomData); err != nil {
+		return fmt.Errorf("failed to generate random data: %w", err)
+	}
+
+	// Overwrite the file data at the specified offset
+	_, err = file.WriteAt(randomData, offset)
+	if err != nil {
+		return fmt.Errorf("failed to overwrite file data: %w", err)
+	}
+
+	// Force write to disk
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf("failed to sync file changes: %w", err)
+	}
+
+	return nil
+}
+
+// AddFreeSpace records a new free space area in the database
+func AddFreeSpace(tx *sql.Tx, offset, length int64) error {
+	_, err := tx.Exec(`
+		INSERT INTO free_spaces (offset, length, created_at)
+		VALUES (?, ?, datetime('now'))
+	`, offset, length)
+
+	if err != nil {
+		return fmt.Errorf("failed to add free space record: %w", err)
+	}
+
+	return nil
+}
+
+// GetFileMetadataForDeletion retrieves file metadata needed for deletion
+func GetFileMetadataForDeletion(tx *sql.Tx, ids []int64) ([]FileMetadata, error) {
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("no file IDs provided")
+	}
+
+	// Create placeholders for SQL IN clause
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, uuid, name, size, folder_id, offset, length, created_at 
+		FROM files 
+		WHERE id IN (%s) AND is_deleted = 0
+	`, strings.Join(placeholders, ","))
+
+	rows, err := tx.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query file metadata: %w", err)
+	}
+	defer rows.Close()
+
+	var filesMetadata []FileMetadata
+	for rows.Next() {
+		var metadata FileMetadata
+		var createdAtStr string
+
+		err := rows.Scan(
+			&metadata.ID, &metadata.UUID, &metadata.Name,
+			&metadata.Size, &metadata.FolderID, &metadata.Offset,
+			&metadata.Length, &createdAtStr,
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan file metadata: %w", err)
+		}
+
+		// Parse timestamp - try RFC3339 first, then fallback to SQLite format
+		createdAt, err := time.Parse(time.RFC3339, createdAtStr)
+		if err != nil {
+			createdAt, err = time.Parse("2006-01-02 15:04:05", createdAtStr)
+			if err != nil {
+				createdAt = time.Now()
+			}
+		}
+		metadata.CreatedAt = createdAt
+
+		filesMetadata = append(filesMetadata, metadata)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating file metadata: %w", err)
+	}
+
+	return filesMetadata, nil
 }

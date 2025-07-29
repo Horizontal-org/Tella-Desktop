@@ -4,6 +4,8 @@ import styled, { keyframes } from 'styled-components';
 interface LoadingDialogProps {
   isOpen: boolean;
   onCancel: () => void;
+  title?: string;
+  message?: string;
 }
 
 const Overlay = styled.div<{ $isOpen: boolean }>`
@@ -87,7 +89,12 @@ const CancelButton = styled.button`
   }
 `;
 
-export function LoadingDialog({ isOpen, onCancel }: LoadingDialogProps) {
+export function LoadingDialog({ 
+  isOpen, 
+  onCancel,
+  title = "Processing",
+  message = "Please wait while your request is being processed. Do not close Tella Desktop or the operation may fail."
+}: LoadingDialogProps) {
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       onCancel();
@@ -109,9 +116,9 @@ export function LoadingDialog({ isOpen, onCancel }: LoadingDialogProps) {
     >
       <DialogContainer>
         <DialogBody>
-          <DialogTitle>Your files are exporting</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogMessage>
-            Please wait while your files are exporting. Do not close Tella Desktop or the export may fail.
+            {message}
           </DialogMessage>
           <Spinner />
         </DialogBody>

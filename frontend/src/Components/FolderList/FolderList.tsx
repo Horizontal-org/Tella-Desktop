@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GetStoredFolders, ExportZipFolders } from '../../../wailsjs/go/app/App';
+import { GetStoredFolders, ExportZipFolders, DeleteFolders } from '../../../wailsjs/go/app/App';
 import {
   Container,
   Header,
@@ -67,6 +67,10 @@ export function FolderList() {
   const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  const [showDeleteDialog, setShowDeleteDialog] = useState<boolean>(false);
+  const [showDeleteLoading, setShowDeleteLoading] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
   
   const fetchFolders = async () => {
     try {
@@ -175,6 +179,62 @@ export function FolderList() {
     }
   };
 
+  const handleDeleteClick = () => {
+    if (selectedFolders.size === 0) return;
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (selectedFolders.size === 0) return;
+    
+    setIsDeleting(true);
+    setShowDeleteDialog(false);
+    setShowDeleteLoading(true);
+    
+    try {
+      const folderIds = Array.from(selectedFolders);
+      
+      // Call the delete API
+      await DeleteFolders(folderIds);
+      
+      // Remove deleted folders from local state
+      setFolders(prevFolders => prevFolders.filter(folder => !selectedFolders.has(folder.id)));
+      
+      // Show success message
+      if (folderIds.length === 1) {
+        setSuccessMessage('Folder deleted successfully');
+      } else {
+        setSuccessMessage(`${folderIds.length} folders deleted successfully`);
+      }
+      
+      setSelectedFolders(new Set());
+      setShowSuccessToast(true);
+      
+    } catch (error) {
+      console.error('Delete failed:', error);
+      setSuccessMessage('Delete failed. Please try again.');
+      setShowSuccessToast(true);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteLoading(false);
+    }
+  };
+
+  // Update handleExportCancel to handle delete loading too
+  const handleDialogCancel = () => {
+    if (isExporting) {
+      setShowExportLoading(false);
+      setIsExporting(false);
+    }
+    if (isDeleting) {
+      setShowDeleteLoading(false);
+      setIsDeleting(false);
+    }
+    setShowExportDialog(false);
+    setShowDeleteDialog(false);
+  };
+
+
   const isAllSelected = folders.length > 0 && selectedFolders.size === folders.length;
   const isIndeterminate = selectedFolders.size > 0 && selectedFolders.size < folders.length;
 
@@ -209,7 +269,7 @@ export function FolderList() {
             <ExportIcon/>
             EXPORT AS ZIP
           </ExportButton>
-          <DeleteButton>
+          <DeleteButton onClick={handleDeleteClick}>
             <DeleteIcon />
             DELETE
           </DeleteButton>
@@ -267,26 +327,27 @@ export function FolderList() {
 
       {/* Export folder as ZIP dialog */}
       <Dialog
-        isOpen={showExportDialog}
-        onClose={handleExportCancel}
-        onExport={handleExportConfirm}
-        title={selectedFolders.size === 1 ? "Export folder as ZIP?" : `Export ${selectedFolders.size} folders as ZIP?`}
+        isOpen={showDeleteDialog}
+        onClose={handleDialogCancel}
+        onConfirm={handleDeleteConfirm}
+        title={selectedFolders.size === 1 ? "Delete folder?" : `Delete ${selectedFolders.size} folders?`}
+        confirmButtonText="DELETE"
+        confirmButtonType="danger"
       >
         <p>
-          Exporting {selectedFolders.size === 1 ? 'this folder' : `these ${selectedFolders.size} folders`} will create ZIP {selectedFolders.size === 1 ? 'archive' : 'archives'} containing all files 
-          that {selectedFolders.size === 1 ? 'is' : 'are'} accessible, unencrypted, outside of Tella.
-        </p>
-        <p>
-          Remember that for now, it is not possible to re-import files 
-          from your computer into Tella Desktop.
+          Deleting {selectedFolders.size === 1 ? 'this folder' : `these ${selectedFolders.size} folders`} will permanently delete {selectedFolders.size === 1 ? 'it' : 'them'} and all files inside from 
+          Tella Desktop. This action cannot be reversed.
         </p>
       </Dialog>
 
       {/* Export loading dialog */}
       <LoadingDialog
-        isOpen={showExportLoading}
-        onCancel={handleExportCancel}
+        isOpen={showDeleteLoading}
+        onCancel={handleDialogCancel}
+        title="Deleting folders"
+        message="Please wait while your folders and files are being permanently deleted. Do not close Tella Desktop or the deletion may fail."
       />
+
 
       {/* Success toast */}
       <SuccessToast

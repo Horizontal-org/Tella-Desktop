@@ -246,6 +246,29 @@ func (a *App) ExportZipFolders(folderIDs []int64, selectedFileIDs []int64) ([]st
 	return a.fileService.ExportZipFolders(folderIDs, selectedFileIDs)
 }
 
+func (a *App) DeleteFiles(ids []int64) error {
+	if a.fileService == nil {
+		runtime.LogError(a.ctx, "file service not initialized")
+		return fmt.Errorf("file service not initialized")
+	}
+
+	err := a.fileService.DeleteFiles(ids)
+	if err != nil {
+		runtime.LogError(a.ctx, fmt.Sprintf("DeleteFiles failed: %v", err))
+		return err
+	}
+
+	runtime.LogInfo(a.ctx, "DeleteFiles completed successfully")
+	return nil
+}
+
+func (a *App) DeleteFolders(folderIDs []int64) error {
+	if a.fileService == nil {
+		return fmt.Errorf("file service not initialized")
+	}
+	return a.fileService.DeleteFolders(folderIDs)
+}
+
 // upload functions
 func (a *App) AcceptTransfer(sessionID string) error {
 	if a.transferService == nil {

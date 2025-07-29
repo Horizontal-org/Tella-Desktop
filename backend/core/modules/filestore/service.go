@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -407,4 +408,145 @@ func (s *service) ExportZipFolders(folderIDs []int64, selectedFileIDs []int64) (
 
 	fmt.Printf("ZIP export completed: %d ZIP files created", len(exportedPaths))
 	return exportedPaths, nil
+}
+
+func (s *service) DeleteFiles(ids []int64) error {
+	if len(ids) == 0 {
+		return fmt.Errorf("no file IDs provided for deletion")
+	}
+
+	// Start transaction
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Get file metadata for deletion
+	filesMetadata, err := filestoreutils.GetFileMetadataForDeletion(tx, ids)
+	if err != nil {
+		return fmt.Errorf("failed to get file metadata for deletion: %w", err)
+	}
+
+	if len(filesMetadata) == 0 {
+		return fmt.Errorf("no files found for deletion")
+	}
+
+	// Mark files as deleted in database and add to free spaces
+	for _, metadata := range filesMetadata {
+		_, err := tx.Exec(`
+			UPDATE files 
+			SET is_deleted = 1, updated_at = datetime('now')
+			WHERE id = ?
+		`, metadata.ID)
+
+		if err != nil {
+			return fmt.Errorf("failed to mark file %d as deleted: %w", metadata.ID, err)
+		}
+
+		// Add the file's space to free_spaces table
+		err = filestoreutils.AddFreeSpace(tx, metadata.Offset, metadata.Length)
+		if err != nil {
+			return fmt.Errorf("failed to add free space for file %d: %w", metadata.ID, err)
+		}
+	}
+
+	// Commit database transaction first
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit deletion transaction: %w", err)
+	}
+
+	// Now securely overwrite the file data in TVault
+	for _, metadata := range filesMetadata {
+		err := filestoreutils.SecurelyOverwriteFileData(s.tvaultPath, metadata.Offset, metadata.Length)
+		if err != nil {
+			// Log error but don't fail the entire operation since DB is already updated
+			fmt.Printf("Warning: Failed to securely overwrite data for file %s (ID: %d): %v\n",
+				metadata.Name, metadata.ID, err)
+		}
+	}
+
+	return nil
+}
+
+func (s *service) DeleteFolders(folderIDs []int64) error {
+	if len(folderIDs) == 0 {
+		return fmt.Errorf("no folder IDs provided for deletion")
+	}
+
+	// First, get all file IDs in the selected folders
+	fileIDs, err := s.getFileIDsInFolders(folderIDs)
+	if err != nil {
+		return fmt.Errorf("failed to get file IDs in folders: %w", err)
+	}
+
+	// Delete all files using the existing DeleteFiles method
+	if len(fileIDs) > 0 {
+		err = s.DeleteFiles(fileIDs)
+		if err != nil {
+			return fmt.Errorf("failed to delete files in folders: %w", err)
+		}
+	}
+
+	// Now delete the empty folders
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	for _, folderID := range folderIDs {
+		_, err := tx.Exec("DELETE FROM folders WHERE id = ?", folderID)
+		if err != nil {
+			return fmt.Errorf("failed to delete folder %d: %w", folderID, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit folder deletion: %w", err)
+	}
+
+	return nil
+}
+
+// Helper method to get all file IDs in the specified folders
+func (s *service) getFileIDsInFolders(folderIDs []int64) ([]int64, error) {
+	if len(folderIDs) == 0 {
+		return nil, nil
+	}
+
+	// Create placeholders for SQL IN clause
+	placeholders := make([]string, len(folderIDs))
+	args := make([]interface{}, len(folderIDs))
+
+	for i, id := range folderIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id FROM files 
+		WHERE folder_id IN (%s) AND is_deleted = 0
+	`, strings.Join(placeholders, ","))
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query file IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var fileIDs []int64
+	for rows.Next() {
+		var fileID int64
+		if err := rows.Scan(&fileID); err != nil {
+			return nil, fmt.Errorf("failed to scan file ID: %w", err)
+		}
+		fileIDs = append(fileIDs, fileID)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating file IDs: %w", err)
+	}
+
+	return fileIDs, nil
 }

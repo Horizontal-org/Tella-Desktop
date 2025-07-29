@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { GetFilesInFolder, ExportFiles, ExportZipFolders } from '../../../wailsjs/go/app/App';
+import { GetFilesInFolder, ExportFiles, ExportZipFolders, DeleteFiles } from '../../../wailsjs/go/app/App';
 import { Dialog } from '../Dialog/Dialog';
 import { LoadingDialog } from '../Dialog/LoadingDialog';
 import { SuccessToast } from '../Toast/SuccessToast';
@@ -103,9 +103,15 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
   const [showExportDialog, setShowExportDialog] = useState<boolean>(false);
   const [showExportZipDialog, setShowExportZipDialog] = useState<boolean>(false);
   const [showExportLoading, setShowExportLoading] = useState<boolean>(false);
+
+  const [showDeleteDialog, setShowDeleteDialog] = useState<boolean>(false);
+  const [showDeleteLoading, setShowDeleteLoading] = useState<boolean>(false);
+
+  // Toast states
   const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   const fetchFiles = async () => {
     if (!folderId) {
@@ -240,9 +246,62 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
     }
   };
 
-  const handleExportCancel = () => {
+  const handleDialogCancel = () => {
     setShowExportDialog(false);
     setShowExportZipDialog(false);
+    setShowDeleteDialog(false);
+  };
+
+  const handleLoadingCancel = () => {
+    if (isExporting) {
+      setShowExportLoading(false);
+      setIsExporting(false);
+    }
+    if (isDeleting) {
+      setShowDeleteLoading(false);
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteClick = () => {
+    if (selectedFiles.size === 0) return;
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (selectedFiles.size === 0) return;
+    
+    setIsDeleting(true);
+    setShowDeleteDialog(false);
+    setShowDeleteLoading(true);
+    
+    try {
+      const fileIds = Array.from(selectedFiles);
+      
+      // Call the delete API
+      await DeleteFiles(fileIds);
+      
+      // Remove deleted files from local state
+      setFiles(prevFiles => prevFiles.filter(file => !selectedFiles.has(file.id)));
+      
+      // Show success message
+      if (fileIds.length === 1) {
+        setSuccessMessage('File deleted successfully');
+      } else {
+        setSuccessMessage(`${fileIds.length} files deleted successfully`);
+      }
+      
+      setSelectedFiles(new Set());
+      setShowSuccessToast(true);
+      
+    } catch (error) {
+      console.error('Delete failed:', error);
+      setSuccessMessage('Delete failed. Please try again.');
+      setShowSuccessToast(true);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteLoading(false);
+    }
   };
 
 
@@ -302,7 +361,7 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
               EXPORT AS ZIP
             </ExportZipButton>
           )}
-          <DeleteButton>
+          <DeleteButton onClick={handleDeleteClick}>
             <DeleteIcon />
             DELETE
           </DeleteButton>
@@ -359,8 +418,9 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
 
       <Dialog
         isOpen={showExportDialog}
-        onClose={handleExportCancel}
-        onExport={handleExportConfirm}
+        onClose={handleDialogCancel}
+        onConfirm={handleExportConfirm}
+        confirmButtonText="EXPORT"
         title={selectedFiles.size === 1 ? "Export file?" : `Export ${selectedFiles.size} files?`}
       >
         <p>
@@ -375,8 +435,9 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
 
       <Dialog
         isOpen={showExportZipDialog}
-        onClose={handleExportCancel}
-        onExport={handleExportZipConfirm}
+        onClose={handleDialogCancel}
+        onConfirm={handleExportZipConfirm}
+        confirmButtonText="EXPORT"
         title="Export files as ZIP?"
       >
         <p>
@@ -389,9 +450,32 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
         </p>
       </Dialog>
 
+      <Dialog
+        isOpen={showDeleteDialog}
+        onClose={handleDialogCancel}
+        onConfirm={handleDeleteConfirm}
+        title={selectedFiles.size === 1 ? "Delete file?" : `Delete ${selectedFiles.size} files?`}
+        confirmButtonText="DELETE"
+        confirmButtonType="danger"
+      >
+        <p>
+          Deleting {selectedFiles.size === 1 ? 'this file' : `these ${selectedFiles.size} files`} will delete {selectedFiles.size === 1 ? 'it' : 'them'} from 
+          Tella Desktop and the system. This action is permanent and cannot be reversed.
+        </p>
+      </Dialog>
+
       <LoadingDialog
         isOpen={showExportLoading}
-        onCancel={handleExportCancel}
+        onCancel={handleDialogCancel}
+        title="Your files are exporting"
+        message="Please wait while your files are exporting. Do not close Tella Desktop or the export may fail."
+      />
+
+      <LoadingDialog
+        isOpen={showDeleteLoading}
+        onCancel={handleLoadingCancel}
+        title="Deleting files"
+        message="Please wait while your files are being permanently deleted. Do not close Tella Desktop or the deletion may fail."
       />
 
       <SuccessToast
