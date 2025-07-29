@@ -18,6 +18,10 @@ export function ExportFiles(arg1) {
   return window['go']['app']['App']['ExportFiles'](arg1);
 }
 
+export function ExportZipFolders(arg1, arg2) {
+  return window['go']['app']['App']['ExportZipFolders'](arg1, arg2);
+}
+
 export function GetFilesInFolder(arg1) {
   return window['go']['app']['App']['GetFilesInFolder'](arg1);
 }

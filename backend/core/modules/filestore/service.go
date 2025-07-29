@@ -8,9 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
-	"path/filepath"
-	goruntime "runtime"
 	"time"
 
 	"github.com/google/uuid"
@@ -137,7 +134,7 @@ func (s *service) GetStoredFiles() ([]FileInfo, error) {
 }
 
 func (s *service) OpenFileByID(id int64) error {
-	metadata, err := s.getFileMetadataByID(id)
+	metadata, err := filestoreutils.GetFileMetadataByID(s.db, id)
 	if err != nil {
 		return err
 	}
@@ -167,7 +164,7 @@ func (s *service) OpenFileByID(id int64) error {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
 
-	tempFilePath := createUniqueFilename(tempDir, metadata.Name)
+	tempFilePath := filestoreutils.CreateUniqueFilename(tempDir, metadata.Name)
 	tempFile, err := os.Create(tempFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
@@ -187,11 +184,11 @@ func (s *service) OpenFileByID(id int64) error {
 
 	fmt.Printf("File decrypted successfully to: %s", tempFilePath)
 
-	if err := s.recordTempFile(id, tempFilePath); err != nil {
+	if err := filestoreutils.RecordTempFile(s.db, id, tempFilePath); err != nil {
 		fmt.Printf("Failed to record temp file in database: %v", err)
 	}
 
-	err = openFileWithDefaultApp(tempFilePath)
+	err = filestoreutils.OpenFileWithDefaultApp(tempFilePath)
 	if err != nil {
 		fmt.Printf("Failed to open file automatically: %v", err)
 		fmt.Printf("File decrypted and saved to: %s", tempFilePath)
@@ -302,7 +299,7 @@ func (s *service) ExportFiles(ids []int64) ([]string, error) {
 
 	for _, id := range ids {
 		// Export each file individually
-		exportPath, err := s.exportSingleFile(id, tvault, exportDir)
+		exportPath, err := filestoreutils.ExportSingleFile(s.db, s.dbKey, id, tvault, exportDir)
 		if err != nil {
 			fmt.Printf("Failed to export file ID %d: %v", id, err)
 			failedFiles = append(failedFiles, fmt.Sprintf("ID %d", id))
@@ -334,114 +331,80 @@ func (s *service) ExportFiles(ids []int64) ([]string, error) {
 	return exportedPaths, nil
 }
 
-func openFileWithDefaultApp(filePath string) error {
-	var cmd *exec.Cmd
-
-	switch goruntime.GOOS {
-	case "darwin":
-		cmd = exec.Command("open", filePath)
-	case "windows":
-		cmd = exec.Command("cmd", "/c", "start", "", filePath)
-	case "linux":
-		cmd = exec.Command("xdg-open", filePath)
-	default:
-		return fmt.Errorf("unsupported operating system")
+func (s *service) ExportZipFolders(folderIDs []int64, selectedFileIDs []int64) ([]string, error) {
+	if len(folderIDs) == 0 {
+		return nil, fmt.Errorf("no folder IDs provided")
 	}
 
-	return cmd.Start()
-}
+	var exportedPaths []string
+	exportDir := authutils.GetExportDir()
 
-func (s *service) getFileMetadataByID(id int64) (*FileMetadata, error) {
-	var metadata FileMetadata
-
-	err := s.db.QueryRow(`
-		SELECT uuid, name, mime_type, offset, length
-		FROM files
-		WHERE id = ? AND is_deleted = 0
-	`, id).Scan(&metadata.UUID, &metadata.Name, &metadata.MimeType, &metadata.Offset, &metadata.Length)
-
+	// Open TVault once for all operations
+	tvault, err := os.Open(s.tvaultPath)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("file not found with ID: %d", id)
-		}
-		return nil, fmt.Errorf("failed to fetch file metadata: %w", err)
+		return nil, fmt.Errorf("failed to open TVault: %w", err)
 	}
+	defer tvault.Close()
 
-	return &metadata, nil
-}
-
-func (s *service) recordTempFile(fileID int64, tempPath string) error {
-	_, err := s.db.Exec(`
-		INSERT INTO temp_files (file_id, temp_path, created_at)
-		VALUES (?, ?, datetime('now'))
-	`, fileID, tempPath)
-
-	return err
-}
-
-func createUniqueFilename(dir, fileName string) string {
-	originalPath := filepath.Join(dir, fileName)
-	if _, err := os.Stat(originalPath); os.IsNotExist(err) {
-		return originalPath
-	}
-
-	ext := filepath.Ext(fileName)
-	baseName := fileName[:len(fileName)-len(ext)]
-
-	counter := 1
-	for {
-		newName := fmt.Sprintf("%s-%d%s", baseName, counter, ext)
-		newPath := filepath.Join(dir, newName)
-
-		if _, err := os.Stat(newPath); os.IsNotExist(err) {
-			return newPath
+	for _, folderID := range folderIDs {
+		// Get folder info using filestoreutils
+		folderInfo, err := filestoreutils.GetFolderInfo(s.db, folderID)
+		if err != nil {
+			fmt.Printf("Failed to get folder info for ID %d: %v", folderID, err)
+			continue
 		}
 
-		counter++
+		var filesToExport []filestoreutils.FileInfo
+
+		if len(selectedFileIDs) > 0 && len(folderIDs) == 1 {
+			// Scenario 1: Export selected files from within a folder
+			fmt.Printf("Exporting %d selected files from folder '%s' as ZIP", len(selectedFileIDs), folderInfo.Name)
+			filesToExport, err = filestoreutils.GetSelectedFilesInFolder(s.db, folderID, selectedFileIDs)
+		} else {
+			// Scenario 2: Export entire folder(s)
+			fmt.Printf("Exporting entire folder '%s' as ZIP", folderInfo.Name)
+			response, err := s.GetFilesInFolder(folderID)
+			if err != nil {
+				fmt.Printf("Failed to get files in folder %d: %v", folderID, err)
+				continue
+			}
+			// Convert from service FileInfo to filestoreutils FileInfo
+			for _, file := range response.Files {
+				filesToExport = append(filesToExport, filestoreutils.FileInfo{
+					ID:        file.ID,
+					Name:      file.Name,
+					MimeType:  file.MimeType,
+					Timestamp: file.Timestamp,
+					Size:      file.Size,
+				})
+			}
+		}
+
+		if err != nil {
+			fmt.Printf("Failed to get files for folder %d: %v", folderID, err)
+			continue
+		}
+
+		if len(filesToExport) == 0 {
+			fmt.Printf("No files to export in folder '%s'", folderInfo.Name)
+			continue
+		}
+
+		// Create ZIP file using filestoreutils
+		zipPath, err := filestoreutils.CreateZipFile(s.db, s.dbKey, folderInfo.Name, filesToExport, tvault, exportDir)
+		if err != nil {
+			fmt.Printf("Failed to create ZIP for folder '%s': %v", folderInfo.Name, err)
+			continue
+		}
+
+		exportedPaths = append(exportedPaths, zipPath)
+		fmt.Printf("ZIP created successfully: %s", zipPath)
 	}
-}
 
-func (s *service) exportSingleFile(id int64, tvault *os.File, exportDir string) (string, error) {
-	metadata, err := s.getFileMetadataByID(id)
-	if err != nil {
-		return "", err
+	if len(exportedPaths) == 0 {
+		return nil, fmt.Errorf("no ZIP files were created successfully")
 	}
 
-	// Read encrypted data from TVault
-	encryptedData := make([]byte, metadata.Length)
-	_, err = tvault.ReadAt(encryptedData, metadata.Offset)
-	if err != nil {
-		return "", fmt.Errorf("failed to read file from TVault: %w", err)
-	}
-
-	// Generate file key and decrypt
-	fileKey := filestoreutils.GenerateFileKey(metadata.UUID, s.dbKey)
-	decryptedData, err := authutils.DecryptData(encryptedData, fileKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to decrypt file: %w", err)
-	}
-
-	// Create unique filename in export directory
-	exportPath := createUniqueFilename(exportDir, metadata.Name)
-
-	// Create the exported file
-	exportFile, err := os.Create(exportPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to create export file: %w", err)
-	}
-	defer exportFile.Close()
-
-	// Write decrypted data to export file
-	_, err = exportFile.Write(decryptedData)
-	if err != nil {
-		return "", fmt.Errorf("failed to write to export file: %w", err)
-	}
-
-	// Set appropriate file permissions
-	err = os.Chmod(exportPath, 0644)
-	if err != nil {
-		fmt.Printf("Failed to set file permissions for %s: %v", exportPath, err)
-	}
-
-	return exportPath, nil
+	fmt.Printf("ZIP export completed: %d ZIP files created", len(exportedPaths))
+	return exportedPaths, nil
 }

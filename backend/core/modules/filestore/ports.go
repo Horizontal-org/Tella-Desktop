@@ -20,4 +20,7 @@ type Service interface {
 
 	// ExportFile exports a file by its ID to the user's downloads directory
 	ExportFiles(ids []int64) ([]string, error)
+
+	// ExportZipFolders exports files as ZIP archives
+	ExportZipFolders(folderIDs []int64, selectedFileIDs []int64) ([]string, error)
 }

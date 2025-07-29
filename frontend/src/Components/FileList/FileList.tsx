@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { GetFilesInFolder, ExportFiles } from '../../../wailsjs/go/app/App';
+import { GetFilesInFolder, ExportFiles, ExportZipFolders } from '../../../wailsjs/go/app/App';
 import { Dialog } from '../Dialog/Dialog';
 import { LoadingDialog } from '../Dialog/LoadingDialog';
 import { SuccessToast } from '../Toast/SuccessToast';
@@ -179,6 +179,33 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
     setShowExportZipDialog(true);
   };
 
+  const handleExportZipConfirm = async () => {
+    if (selectedFiles.size <= 1 || !folderId) return;
+    
+    setIsExporting(true);
+    setShowExportZipDialog(false);
+    setShowExportLoading(true);
+    
+    try {
+      const fileIds = Array.from(selectedFiles);
+      
+      const exportPaths = await ExportZipFolders([folderId], fileIds);
+      
+      setSuccessMessage(`ZIP file created successfully: ${exportPaths[0]}`);
+      
+      setSelectedFiles(new Set());
+      setShowSuccessToast(true);
+      
+    } catch (error) {
+      console.error('ZIP export failed:', error);
+      setSuccessMessage('ZIP export failed. Please try again.');
+      setShowSuccessToast(true);
+    } finally {
+      setIsExporting(false);
+      setShowExportLoading(false);
+    }
+  };
+
   const handleExportConfirm = async () => {
     if (selectedFiles.size === 0) return;
     
@@ -349,7 +376,7 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
       <Dialog
         isOpen={showExportZipDialog}
         onClose={handleExportCancel}
-        onExport={handleExportConfirm}
+        onExport={handleExportZipConfirm}
         title="Export files as ZIP?"
       >
         <p>

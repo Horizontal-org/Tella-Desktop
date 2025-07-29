@@ -239,6 +239,13 @@ func (a *App) ExportFiles(ids []int64) ([]string, error) {
 	return a.fileService.ExportFiles(ids)
 }
 
+func (a *App) ExportZipFolders(folderIDs []int64, selectedFileIDs []int64) ([]string, error) {
+	if a.fileService == nil {
+		return nil, fmt.Errorf("file service not initialized")
+	}
+	return a.fileService.ExportZipFolders(folderIDs, selectedFileIDs)
+}
+
 // upload functions
 func (a *App) AcceptTransfer(sessionID string) error {
 	if a.transferService == nil {
