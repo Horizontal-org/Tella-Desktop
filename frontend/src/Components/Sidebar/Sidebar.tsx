@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import tellaIcon from '../../assets/images/icons/tella-icon.svg'
 import nearbySharingIcon from '../../assets/images/icons/nearby-sharing-icon.svg'
 import receivedIcon from '../../assets/images/icons/received-icon.svg'
 import lockIcon from '../../assets/images/icons/lock-icon.svg'
+import { useServerState, useServerActions } from '../../Contexts/ServerContext';
+import { Dialog } from '../Dialog/Dialog';
 
 interface SidebarProps {
   className?: string;
@@ -13,8 +16,23 @@ export function Sidebar({ className }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const { isRunning: serverRunning } = useServerState()
+  const { stopServer } = useServerActions()
+
+  const [showExitDialog, setShowExitDialog] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+  const [isExiting, setIsExiting] = useState(false);
+
+  const isOnNearbySharing = location.pathname === '/nearby-sharing';
+  const shouldGuard = isOnNearbySharing && serverRunning;
+
   const handleNavigation = (path: string) => {
-    navigate(path);
+    if (shouldGuard && path !== '/nearby-sharing') {
+      setPendingNavigation(path);
+      setShowExitDialog(true);
+    } else {
+      navigate(path);
+    }
   };
 
   const isActive = (path: string) => {
@@ -26,6 +44,29 @@ export function Sidebar({ className }: SidebarProps) {
   const handleLock = () => {
     console.log('Lock button clicked')
   }
+
+  const handleExitConfirm = async () => {
+    if (!pendingNavigation) return;
+
+    try {
+      setIsExiting(true);
+      
+      // Stop the server
+      await stopServer();    
+      navigate(pendingNavigation);  
+    } catch (error) {
+      console.error('Error stopping server:', error);
+    } finally {
+      setIsExiting(false);
+      setShowExitDialog(false);
+      setPendingNavigation(null);
+    }
+  };
+
+  const handleExitCancel = () => {
+    setShowExitDialog(false);
+    setPendingNavigation(null);
+  };
   return (
     <SidebarContainer className={className}>
       <SidebarHeader>
@@ -54,6 +95,17 @@ export function Sidebar({ className }: SidebarProps) {
         <Icon icon='lock' />
         <LockText>Lock</LockText>
       </LockButton>
+
+      <Dialog 
+        isOpen={showExitDialog}
+        onClose={handleExitCancel}
+        onConfirm={handleExitConfirm}
+        title='Exit Nearby Sharing?'
+        cancelButtonText='CONTINUE NEARBY SHARING'
+        confirmButtonText='EXIT' 
+      >
+        <p>If you exit Nearby Sharing, you will have to restart the process from the beginning. </p>
+      </Dialog>
     </SidebarContainer>
   );
 }

@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
+import { GetLocalIPs, RejectRegistration, ConfirmRegistration } from "../../../../wailsjs/go/app/App";
 import { EventsOn } from "../../../../wailsjs/runtime/runtime";
-import { StartServer, StopServer, GetLocalIPs, RejectRegistration, ConfirmRegistration } from "../../../../wailsjs/go/app/App";
-const SERVER_PORT = 53317;
+import { useServer } from "../../../Contexts/ServerContext";
 
 type FlowStep = 'intro' | 'connect' | 'accept' | 'receive' | 'results';
 type ModalState = 'waiting' | 'confirm';
@@ -24,13 +24,10 @@ interface TransferData {
 
 export function useNearbySharing() {
   const navigate = useNavigate();
+  const { isRunning: serverRunning, isStarting: isStartingServer, startServer, stopServer } = useServer();
   
   // Flow state
   const [currentStep, setCurrentStep] = useState<FlowStep>('intro');
-  
-  // Server state
-  const [serverRunning, setServerRunning] = useState(false);
-  const [isStartingServer, setIsStartingServer] = useState(false);
   
   // Network state
   const [wifiNetwork, setWifiNetwork] = useState<string>('');
@@ -91,33 +88,17 @@ export function useNearbySharing() {
     };
   }, []);
 
-  // Server management
-  const startServer = async () => {
-    try {
-      setIsStartingServer(true);
-      await StartServer(SERVER_PORT);
-      setServerRunning(true);
-      return true;
-    } catch (error) {
-      console.error("Failed to start server:", error);
-      return false;
-    } finally {
-      setIsStartingServer(false);
+  // Server management - now delegated to ServerContext
+  const handleStartServer = async () => {
+    const success = await startServer();
+    if (success) {
+      setCurrentStep('connect');
     }
+    return success;
   };
 
-  const stopServer = async () => {
-    if (serverRunning) {
-      try {
-        await StopServer();
-        setServerRunning(false);
-        return true;
-      } catch (error) {
-        console.error("Failed to stop server:", error);
-        return false;
-      }
-    }
-    return true;
+  const handleStopServer = async () => {
+    return await stopServer();
   };
 
   // Certificate verification handlers
@@ -144,14 +125,14 @@ export function useNearbySharing() {
     
     setShowVerificationModal(false);
     setModalState('waiting');
-    await stopServer();
+    await handleStopServer();
     setCurrentStep('intro');
   };
 
   // Flow navigation handlers
   const handleBack = async () => {
     if (serverRunning) {
-      await stopServer();
+      await handleStopServer();
     }
     
     resetState();
@@ -160,10 +141,7 @@ export function useNearbySharing() {
 
   const handleContinue = async () => {
     if (currentStep === 'intro' && isWifiConfirmed) {
-      const success = await startServer();
-      if (success) {
-        setCurrentStep('connect');
-      }
+      await handleStartServer();
     }
   };
 
@@ -194,7 +172,7 @@ export function useNearbySharing() {
   const handleViewFiles = async () => {
     console.log("📁 View files clicked - stopping server and navigating");
     if (serverRunning) {
-      await stopServer();
+      await handleStopServer();
     }
     navigate('/');
   };
@@ -211,6 +189,7 @@ export function useNearbySharing() {
   };
 
   return {
+    // State
     currentStep,
     serverRunning,
     isStartingServer,
@@ -222,9 +201,11 @@ export function useNearbySharing() {
     showVerificationModal,
     certificateHash,
     modalState,
-
+    
+    // State setters
     setIsWifiConfirmed,
-
+    
+    // Actions
     handleBack,
     handleContinue,
     handleVerificationConfirm,
@@ -234,8 +215,10 @@ export function useNearbySharing() {
     handleFileReceiving,
     handleReceiveComplete,
     handleViewFiles,
-    startServer,
-    stopServer,
+    
+    // Server actions (delegated to context)
+    startServer: handleStartServer,
+    stopServer: handleStopServer,
     resetState
   };
 }

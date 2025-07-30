@@ -74,6 +74,7 @@ const DialogFooter = styled.div`
 `;
 
 const Button = styled.button`
+  background-color: white;
   padding: 0.75rem 1.5rem;
   border-radius: 4px;
   font-size: 0.875rem;
@@ -82,28 +83,8 @@ const Button = styled.button`
   transition: background-color 0.2s;
   text-transform: uppercase;
   min-width: 140px;
-  border: 1px solid;
-`;
-
-const CancelButton = styled(Button)`
-  background-color: white;
+  border: 1px solid #6c757d;
   color: #6c757d;
-  border-color: #6c757d;
-  
-  &:hover {
-    background-color: #f8f9fa;
-  }
-`;
-
-const ConfirmButton = styled(Button)<{ $buttonType: 'primary' | 'danger' }>`
-  background-color: ${props => props.$buttonType === 'danger' ? '#dc3545' : '#28a745'};
-  color: white;
-  border-color: ${props => props.$buttonType === 'danger' ? '#dc3545' : '#28a745'};
-  
-  &:hover {
-    background-color: ${props => props.$buttonType === 'danger' ? '#c82333' : '#218838'};
-    border-color: ${props => props.$buttonType === 'danger' ? '#bd2130' : '#1e7e34'};
-  }
 `;
 
 export function Dialog({ 
@@ -148,15 +129,14 @@ export function Dialog({
         </DialogBody>
         
         <DialogFooter>
-          <CancelButton onClick={onClose}>
+          <Button onClick={onClose}>
             {cancelButtonText}
-          </CancelButton>
-          <ConfirmButton 
-            $buttonType={confirmButtonType}
+          </Button>
+          <Button
             onClick={onConfirm}
           >
             {confirmButtonText}
-          </ConfirmButton>
+          </Button>
         </DialogFooter>
       </DialogContainer>
     </Overlay>
