@@ -1,0 +1,102 @@
+name: Build Cross-Platform
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: amd64
+          - os: windows-latest
+            platform: windows
+            arch: amd64
+          - os: macos-latest
+            platform: darwin
+            arch: universal
+            
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+        
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+        
+    - name: Install Wails
+      run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+      
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+        
+    - name: Build for ${{ matrix.platform }}
+      run: wails build -clean
+      
+    - name: Prepare artifacts (Linux)
+      if: matrix.platform == 'linux'
+      run: |
+        mkdir -p dist
+        cp build/bin/Tella-Desktop dist/Tella-Desktop-linux-amd64
+        
+    - name: Prepare artifacts (Windows)
+      if: matrix.platform == 'windows'
+      run: |
+        mkdir -p dist
+        cp build/bin/Tella-Desktop.exe dist/Tella-Desktop-windows-amd64.exe
+        
+    - name: Prepare artifacts (macOS)
+      if: matrix.platform == 'darwin'
+      run: |
+        mkdir -p dist
+        cp build/bin/Tella-Desktop.app/Contents/MacOS/Tella-Desktop dist/Tella-Desktop-macos-universal
+        # Also create a zip of the entire .app bundle
+        cd build/bin
+        zip -r ../../dist/Tella-Desktop-macos-universal.app.zip Tella-Desktop.app
+        
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Tella-Desktop-${{ matrix.platform }}-${{ matrix.arch }}
+        path: dist/
+        retention-days: 30
+        
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        
+    - name: Display structure
+      run: ls -la artifacts/
+      
+    - name: Create Release (if tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: artifacts/**/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
