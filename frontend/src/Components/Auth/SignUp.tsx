@@ -60,7 +60,10 @@ export function SignUp({ onLoginSuccess, initialError = '' }: SignUpProps) {
       <AuthCard>
         <CardTitle>Welcome to Tella Desktop</CardTitle>
         <CardSubtitle>
-        Create a password. This is the password you will need to log into Tella and access your files. Make sure to save it somewhere safe: if you lose it, your files cannot be recovered
+          Create a password to log into Tella and access your files. Your password must be at least 8 characters long.
+        </CardSubtitle>
+        <CardSubtitle>
+          Make sure to store your password in a safe place. If you lose your password, there is no way of recovering your files.
         </CardSubtitle>
 
         {error && <ErrorMessage>{error}</ErrorMessage>}

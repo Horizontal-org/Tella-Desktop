@@ -28,7 +28,6 @@ import {
   FolderName,
   Checkbox,
   NoItemsMessage,
-  RefreshButton
 } from '../../styles/TableStyles';
 import { Dialog } from '../Dialog/Dialog';
 import { LoadingDialog } from '../Dialog/LoadingDialog';
@@ -77,10 +76,9 @@ export function FolderList() {
       setLoading(true);
       setError(null);
       const foldersData = await GetStoredFolders();
-      setFolders(foldersData);
+      setFolders(foldersData || []); // Handle null case explicitly
     } catch (err) {
       console.error('Failed to fetch folders:', err);
-      setError('Failed to fetch folders. Please ensure you are logged in.');
     } finally {
       setLoading(false);
     }
@@ -249,9 +247,8 @@ export function FolderList() {
   if (!folders || folders.length === 0) {
     return (
       <Container>
-        <RefreshButton onClick={fetchFolders}>Refresh Folders</RefreshButton>
         <NoItemsMessage>
-          No folders found. Receive files via Nearby Sharing to see them organized in folders here.
+          This is where the files you receive will be displayed. Click on “Nearby Sharing” to get started.
         </NoItemsMessage>
       </Container>
     );
@@ -324,8 +321,24 @@ export function FolderList() {
           </TableBody>
         </Table>
       </TableContainer>
+      
+      <Dialog
+        isOpen={showExportDialog}
+        onClose={handleDialogCancel}
+        onConfirm={handleExportConfirm}
+        confirmButtonText="EXPORT"
+        title={selectedFolders.size === 1 ? "Export folder as ZIP?" : `Export ${selectedFolders.size} folders as ZIP?`}
+      >
+        <p>
+          Exporting {selectedFolders.size === 1 ? 'this folder' : `these ${selectedFolders.size} folders`} will create ZIP {selectedFolders.size === 1 ? 'archive' : 'archives'} that {selectedFolders.size === 1 ? 'is' : 'are'} accessible, 
+          unencrypted, outside of Tella.
+        </p>
+        <p>
+          Remember that for now, it is not possible to re-import files 
+          from your computer into Tella Desktop.
+        </p>
+      </Dialog>
 
-      {/* Export folder as ZIP dialog */}
       <Dialog
         isOpen={showDeleteDialog}
         onClose={handleDialogCancel}
@@ -339,7 +352,13 @@ export function FolderList() {
         </p>
       </Dialog>
 
-      {/* Export loading dialog */}
+      <LoadingDialog
+        isOpen={showExportLoading}
+        onCancel={handleDialogCancel}
+        title="Your folders are exporting"
+        message="Please wait while your folders are being exported as ZIP files. Do not close Tella Desktop or the export may fail."
+      />
+
       <LoadingDialog
         isOpen={showDeleteLoading}
         onCancel={handleDialogCancel}
@@ -347,8 +366,6 @@ export function FolderList() {
         message="Please wait while your folders and files are being permanently deleted. Do not close Tella Desktop or the deletion may fail."
       />
 
-
-      {/* Success toast */}
       <SuccessToast
         isVisible={showSuccessToast}
         message={successMessage}
