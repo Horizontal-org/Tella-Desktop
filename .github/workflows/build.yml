@@ -1,123 +1,128 @@
-name: Build Cross-Platform
+name: "Cross-Platform Builds"
 
 on:
+  workflow_dispatch:
+    # Manual trigger - go to Actions and run manually
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-  workflow_dispatch: # Allows manual triggering
+    # Also trigger on pushes to main/master
 
 jobs:
   build:
-    timeout-minutes: 30
     strategy:
       matrix:
         include:
-          - os: ubuntu-20.04  # Use older Ubuntu with webkit2gtk-4.0
-            platform: linux
-            arch: amd64
-          - os: windows-latest
-            platform: windows
-            arch: amd64
-          - os: macos-latest
-            platform: darwin
-            arch: universal
-            
-    runs-on: ${{ matrix.os }}
+          - platform: macos-latest
+            os-name: macos
+            go-version: 1.22.0
+          - platform: windows-latest
+            os-name: windows
+            go-version: 1.22.0
+          - platform: ubuntu-20.04  # Use older Ubuntu for webkit compatibility
+            os-name: linux
+            go-version: 1.22.0
+    
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 30
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.23'
-        cache: true
+      - name: Checkout code
+        uses: actions/checkout@v4
         
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: frontend/package-lock.json
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.11.1
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+          
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
+          
+      # Linux-specific dependencies
+      - name: Install Linux dependencies
+        if: matrix.os-name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev
+          
+      # Get Wails - using specific version for stability
+      - name: Get Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.8.0
         
-    - name: Install Wails
-      run: |
-        go install github.com/wailsapp/wails/v2/cmd/wails@latest
-        wails doctor
-      
-    - name: Install frontend dependencies
-      run: |
-        cd frontend
-        npm ci
-        
-    - name: Install Linux dependencies
-      if: matrix.platform == 'linux'
-      run: |
-        sudo apt-get update
-        # Install essential build tools
-        sudo apt-get install -y build-essential pkg-config
-        # Install GTK3 development files
-        sudo apt-get install -y libgtk-3-dev
-        # Install WebKit2GTK development files (try different versions)
-        sudo apt-get install -y libwebkit2gtk-4.0-dev || \
-        sudo apt-get install -y libwebkit2gtk-4.1-dev
-        # Install additional dependencies that might be needed
-        sudo apt-get install -y libappindicator3-dev
-        
-    - name: Build for ${{ matrix.platform }}
-      run: |
-        # Set build tags for SQLite if needed (from your wails.json)
-        export CGO_ENABLED=1
-        wails build -clean -tags "sqlite_unlock_notify sqlite_crypt sqlcipher"
-      
-    - name: Prepare artifacts (Linux)
-      if: matrix.platform == 'linux'
-      run: |
-        mkdir -p dist
-        cp build/bin/Tella-Desktop dist/Tella-Desktop-linux-amd64
-        
-    - name: Prepare artifacts (Windows)
-      if: matrix.platform == 'windows'
-      run: |
-        mkdir -p dist
-        cp build/bin/Tella-Desktop.exe dist/Tella-Desktop-windows-amd64.exe
-        
-    - name: Prepare artifacts (macOS)
-      if: matrix.platform == 'darwin'
-      run: |
-        mkdir -p dist
-        cp build/bin/Tella-Desktop.app/Contents/MacOS/Tella-Desktop dist/Tella-Desktop-macos-universal
-        # Also create a zip of the entire .app bundle
-        cd build/bin
-        zip -r ../../dist/Tella-Desktop-macos-universal.app.zip Tella-Desktop.app
-        
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: Tella-Desktop-${{ matrix.platform }}-${{ matrix.arch }}
-        path: dist/
-        retention-days: 30
-        
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    
-    steps:
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
-        
-    - name: Display structure
-      run: ls -la artifacts/
-      
-    - name: Create Release (if tag)
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: artifacts/**/*
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # macOS-specific setup
+      - name: macOS - Setup
+        if: matrix.os-name == 'macos'
+        run: |
+          # Install appdmg for creating DMG files (optional)
+          npm install -g appdmg || true
+          
+      # Build for each platform
+      - name: Build for macOS
+        if: matrix.os-name == 'macos'
+        run: |
+          wails build --platform "darwin/universal" --clean -tags "sqlite_unlock_notify sqlite_crypt sqlcipher" --ldflags="-s -w" -o "Tella-Desktop.app"
+          
+      - name: Build for Windows
+        if: matrix.os-name == 'windows'
+        run: |
+          wails build --clean -tags "sqlite_unlock_notify sqlite_crypt sqlcipher" --ldflags="-s -w" -o "Tella-Desktop.exe"
+          
+      - name: Build for Linux
+        if: matrix.os-name == 'linux'
+        run: |
+          export CGO_ENABLED=1
+          wails build --clean -tags "sqlite_unlock_notify sqlite_crypt sqlcipher" --ldflags="-s -w" -o "Tella-Desktop"
+          
+      # Create macOS DMG (optional)
+      - name: macOS - Create DMG
+        if: matrix.os-name == 'macos'
+        run: |
+          if command -v appdmg &> /dev/null; then
+            echo '{
+              "title": "Tella Desktop",
+              "background": "./build/appicon.png",
+              "contents": [
+                { "x": 448, "y": 344, "type": "link", "path": "/Applications" },
+                { "x": 192, "y": 344, "type": "file", "path": "./build/bin/Tella-Desktop.app" }
+              ]
+            }' > dmg-config.json
+            appdmg ./dmg-config.json ./build/bin/Tella-Desktop.dmg || echo "DMG creation failed, but continuing..."
+          else
+            echo "appdmg not available, skipping DMG creation"
+          fi
+          
+      # Upload artifacts
+      - name: Upload macOS artifacts
+        if: matrix.os-name == 'macos'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tella-Desktop-macos
+          path: |
+            build/bin/Tella-Desktop.app
+            build/bin/*.dmg
+          retention-days: 30
+          
+      - name: Upload Windows artifacts
+        if: matrix.os-name == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tella-Desktop-windows
+          path: build/bin/Tella-Desktop.exe
+          retention-days: 30
+          
+      - name: Upload Linux artifacts
+        if: matrix.os-name == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tella-Desktop-linux
+          path: build/bin/Tella-Desktop
+          retention-days: 30
