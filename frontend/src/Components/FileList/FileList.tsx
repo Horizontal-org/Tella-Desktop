@@ -456,7 +456,6 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
         onConfirm={handleDeleteConfirm}
         title={selectedFiles.size === 1 ? "Delete file?" : `Delete ${selectedFiles.size} files?`}
         confirmButtonText="DELETE"
-        confirmButtonType="danger"
       >
         <p>
           Deleting {selectedFiles.size === 1 ? 'this file' : `these ${selectedFiles.size} files`} will delete {selectedFiles.size === 1 ? 'it' : 'them'} from 

@@ -8,7 +8,6 @@ interface DialogProps {
   title: string;
   confirmButtonText?: string;
   cancelButtonText?: string;
-  confirmButtonType?: 'primary' | 'danger';
   children: React.ReactNode;
 }
 
@@ -70,7 +69,7 @@ const DialogFooter = styled.div`
   border-top: 1px solid #e9ecef;
   display: flex;
   gap: 1rem;
-  justify-content: center;
+  justify-content: end;
 `;
 
 const Button = styled.button`
@@ -94,7 +93,6 @@ export function Dialog({
   title, 
   confirmButtonText = 'CONFIRM',
   cancelButtonText = 'CANCEL',
-  confirmButtonType = 'primary',
   children 
  }: DialogProps) {
   const handleOverlayClick = (e: React.MouseEvent) => {

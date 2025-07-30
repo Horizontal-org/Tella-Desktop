@@ -332,7 +332,6 @@ export function FolderList() {
         onConfirm={handleDeleteConfirm}
         title={selectedFolders.size === 1 ? "Delete folder?" : `Delete ${selectedFolders.size} folders?`}
         confirmButtonText="DELETE"
-        confirmButtonType="danger"
       >
         <p>
           Deleting {selectedFolders.size === 1 ? 'this folder' : `these ${selectedFolders.size} folders`} will permanently delete {selectedFolders.size === 1 ? 'it' : 'them'} and all files inside from 
