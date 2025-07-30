@@ -1,8 +1,9 @@
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import wifiIcon from "../../assets/images/icons/wifi-icon.svg";
 
 interface IntroStepProps {
   wifiNetwork: string;
+  isLoadingWifi: boolean;
   isWifiConfirmed: boolean;
   onWifiConfirmChange: (confirmed: boolean) => void;
   isStartingServer: boolean;
@@ -10,7 +11,8 @@ interface IntroStepProps {
 }
 
 export function IntroStep({ 
-  wifiNetwork, 
+  wifiNetwork,
+  isLoadingWifi,
   isWifiConfirmed, 
   isStartingServer,
   onWifiConfirmChange, 
@@ -26,7 +28,14 @@ export function IntroStep({
           <WifiIcon />
           <NetworkLabel>Your current Wi-Fi network</NetworkLabel>
         </NetworkTitleContainer>
-        <NetworkName>{wifiNetwork}</NetworkName>
+        <NetworkName>
+              { isLoadingWifi ? (
+              <LoadingContainer>
+                <Spinner />
+                <LoadingText>Detecting network...</LoadingText>
+              </LoadingContainer> 
+              ): (<span>{wifiNetwork}</span>)}
+        </NetworkName>
 
         <CheckboxContainer>
           <Checkbox 
@@ -50,6 +59,12 @@ export function IntroStep({
     </StepContent>
   );
 }
+
+const spin = keyframes`
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+`;
+
 
 const StepContent = styled.div`
   max-width: 600px;
@@ -143,4 +158,26 @@ const ContinueButton = styled.button<{ $isActive: boolean }>`
   cursor: ${({ $isActive }) => $isActive ? 'pointer' : 'not-allowed'};
   transition: background-color 0.2s;
   opacity: ${({ $isActive }) => $isActive ? '100%' : '36%'}
+`;
+
+const LoadingContainer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: #6c757d;
+`;
+
+const LoadingText = styled.span`
+  font-size: 0.9rem;
+  color: #6c757d;
+`;
+
+const Spinner = styled.div`
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e9ecef;
+  border-top: 2px solid #6c757d;
+  border-radius: 50%;
+  animation: ${spin} 1s linear infinite;
 `;

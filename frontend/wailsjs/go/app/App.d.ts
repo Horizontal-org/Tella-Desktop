@@ -27,6 +27,8 @@ export function GetStoredFiles():Promise<Array<filestore.FileInfo>>;
 
 export function GetStoredFolders():Promise<Array<filestore.FolderInfo>>;
 
+export function GetWiFiNetworkName():Promise<string>;
+
 export function IsFirstTimeSetup():Promise<boolean>;
 
 export function IsServerRunning():Promise<boolean>;

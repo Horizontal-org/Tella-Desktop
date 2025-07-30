@@ -23,6 +23,7 @@ export function NearbySharing() {
     modalState,
     
     setIsWifiConfirmed,
+    isLoadingWifi,
     
     handleContinue,
     handleVerificationConfirm,
@@ -47,7 +48,8 @@ export function NearbySharing() {
       <MainContent>
         {currentStep === 'intro' && (
           <IntroStep 
-            wifiNetwork={wifiNetwork} 
+            wifiNetwork={wifiNetwork}
+            isLoadingWifi={isLoadingWifi} 
             isWifiConfirmed={isWifiConfirmed} 
             onWifiConfirmChange={setIsWifiConfirmed} 
             isStartingServer={isStartingServer}

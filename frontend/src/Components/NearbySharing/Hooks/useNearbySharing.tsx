@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
-import { GetLocalIPs, RejectRegistration, ConfirmRegistration } from "../../../../wailsjs/go/app/App";
+import { GetLocalIPs, RejectRegistration, ConfirmRegistration, GetWiFiNetworkName } from "../../../../wailsjs/go/app/App";
 import { EventsOn } from "../../../../wailsjs/runtime/runtime";
 import { useServer } from "../../../Contexts/ServerContext";
 
@@ -33,6 +33,7 @@ export function useNearbySharing() {
   const [wifiNetwork, setWifiNetwork] = useState<string>('');
   const [isWifiConfirmed, setIsWifiConfirmed] = useState(false);
   const [localIPs, setLocalIPs] = useState<string[]>([]);
+  const [isLoadingWifi, setIsLoadingWifi] = useState<boolean>(false);
   
   // Transfer state
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
@@ -49,7 +50,16 @@ export function useNearbySharing() {
       try {
         const ips = await GetLocalIPs();
         setLocalIPs(ips);
-        setWifiNetwork('dontstealmywifi');
+        setIsLoadingWifi(true);
+
+        try {
+          const wifiName = await GetWiFiNetworkName();
+          setWifiNetwork(wifiName);
+        } catch (wifiErr) {
+          console.error('Failed to get WiFi network name:', wifiErr);
+        } finally {
+          setIsLoadingWifi(false);
+        }
       } catch (error) {
         console.error('Failed to get network info:', error);
       }
@@ -194,6 +204,7 @@ export function useNearbySharing() {
     serverRunning,
     isStartingServer,
     wifiNetwork,
+    isLoadingWifi,
     isWifiConfirmed,
     localIPs,
     currentSessionId,
