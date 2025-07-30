@@ -1,9 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Auth } from '../Components/Auth';
-import { Dashboard } from '../Components/Dashboard';
 import { ProtectedRoute } from '../Components/ProtectedRoute/ProtectedRoute';
 import { NearbySharing } from '../Components/NearbySharing/NearbySharing';
-
+import { FileList } from '../Components/FileList/FileList';
+import { AppLayout } from '../Components/AppLayout/AppLayout';
+import { FolderList } from '../Components/FolderList';
 interface AppRouterProps {
   isAuthenticated: boolean;
   onLoginSuccess: () => void;
@@ -25,31 +26,18 @@ export function AppRouter({ isAuthenticated, onLoginSuccess }: AppRouterProps) {
         />
 
         <Route 
-          path="/" 
+          path="/*" 
           element={
             <ProtectedRoute isAuthenticated={isAuthenticated}>
-              <Dashboard />
+              <AppLayout>
+                <Routes>
+                  <Route path="/" element={<FolderList />} />
+                  <Route path="/folder/:folderId" element={<FileList />} />
+                  <Route path="/nearby-sharing" element={<NearbySharing />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </AppLayout>
             </ProtectedRoute>
-          } 
-        />
-
-        <Route 
-          path="/nearby-sharing" 
-          element={
-            <ProtectedRoute isAuthenticated={isAuthenticated}>
-              <NearbySharing />
-            </ProtectedRoute>
-          } 
-        />
-        
-        
-        <Route 
-          path="*" 
-          element={
-            <Navigate 
-              to={isAuthenticated ? "/" : "/auth"} 
-              replace 
-            />
           } 
         />
       </Routes>

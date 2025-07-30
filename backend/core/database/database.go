@@ -29,7 +29,7 @@ func Initialize(dbPath string, key []byte) (*DB, error) {
 
 	// Convert the key to hex string
 	hexKey := hex.EncodeToString(key)
-
+	fmt.Printf("🔑 TEMP DEBUG - Hex Key: %s\n", hexKey)
 	// Use the DSN format recommended by go-sqlcipher
 	connStr := fmt.Sprintf("%s?_pragma_key=x'%s'&_pragma_cipher_page_size=4096&_pragma_kdf_iter=64000&_pragma_cipher_hmac_algorithm=HMAC_SHA512&_pragma_cipher_compatibility=3", dbPath, hexKey)
 

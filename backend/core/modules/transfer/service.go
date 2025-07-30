@@ -3,6 +3,7 @@ package transfer
 import (
 	"Tella-Desktop/backend/utils/transferutils"
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"sync"
@@ -19,6 +20,7 @@ type service struct {
 	transfers        sync.Map
 	pendingTransfers sync.Map
 	fileService      filestore.Service
+	db               *sql.DB
 }
 
 type PendingTransfer struct {
@@ -30,12 +32,20 @@ type PendingTransfer struct {
 	CreatedAt    time.Time
 }
 
-func NewService(ctx context.Context, fileSerservice filestore.Service) Service {
+type TransferSession struct {
+	SessionID string
+	FolderID  int64
+	Title     string
+	Files     map[string]*Transfer
+}
+
+func NewService(ctx context.Context, fileSerservice filestore.Service, db *sql.DB) Service {
 	return &service{
 		ctx:              ctx,
 		transfers:        sync.Map{},
 		pendingTransfers: sync.Map{},
 		fileService:      fileSerservice,
+		db:               db,
 	}
 }
 
@@ -83,6 +93,18 @@ func (s *service) AcceptTransfer(sessionID string) error {
 		return fmt.Errorf("invalid pending transfer data")
 	}
 
+	folderID, err := s.createTransferFolder(pendingTransfer.Title)
+	if err != nil {
+		return fmt.Errorf("failed to create transfer folder: %w", err)
+	}
+
+	transferSession := &TransferSession{
+		SessionID: sessionID,
+		FolderID:  folderID,
+		Title:     pendingTransfer.Title,
+		Files:     make(map[string]*Transfer),
+	}
+
 	var responseFiles []FileTransmissionInfo
 	for _, fileInfo := range pendingTransfer.Files {
 		transmissionID := uuid.New().String()
@@ -93,11 +115,14 @@ func (s *service) AcceptTransfer(sessionID string) error {
 			Status:    "pending",
 		}
 		s.transfers.Store(fileInfo.ID, transfer)
+
 		responseFiles = append(responseFiles, FileTransmissionInfo{
 			ID:             fileInfo.ID,
 			TransmissionID: transmissionID,
 		})
 	}
+
+	s.transfers.Store(sessionID+"_session", transferSession)
 
 	response := &PrepareUploadResponse{
 		Files: responseFiles,
@@ -155,7 +180,21 @@ func (s *service) HandleUpload(sessionID, transmissionID, fileID string, reader 
 		return transferutils.ErrTransferComplete
 	}
 
-	metadata, err := s.fileService.StoreFile(folderID, fileName, mimeType, reader)
+	actualFolderID := folderID
+	if sessionValue, exists := s.transfers.Load(sessionID + "_session"); exists {
+		if session, ok := sessionValue.(*TransferSession); ok {
+			actualFolderID = session.FolderID
+		}
+	}
+
+	runtime.EventsEmit(s.ctx, "file-receiving", map[string]interface{}{
+		"sessionId": sessionID,
+		"fileId":    fileID,
+		"fileName":  fileName,
+		"fileSize":  transfer.FileInfo.Size,
+	})
+
+	metadata, err := s.fileService.StoreFile(actualFolderID, fileName, mimeType, reader)
 	if err != nil {
 		transfer.Status = "failed"
 		s.transfers.Store(fileID, transfer)
@@ -165,7 +204,14 @@ func (s *service) HandleUpload(sessionID, transmissionID, fileID string, reader 
 	transfer.Status = "completed"
 	s.transfers.Store(fileID, transfer)
 
-	fmt.Printf("File stored successfully. ID: %s, Name: %s", metadata.UUID, metadata.Name)
+	runtime.EventsEmit(s.ctx, "file-received", map[string]interface{}{
+		"sessionId": sessionID,
+		"fileId":    fileID,
+		"fileName":  fileName,
+		"fileSize":  transfer.FileInfo.Size,
+	})
+
+	runtime.LogInfo(s.ctx, fmt.Sprintf("File stored successfully in folder %d. ID: %s, Name: %s", actualFolderID, metadata.UUID, metadata.Name))
 	return nil
 }
 
@@ -175,4 +221,33 @@ func (s *service) calculateTotalSize(files []FileInfo) int64 {
 		total += file.Size
 	}
 	return total
+}
+
+func (s *service) createTransferFolder(title string) (int64, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Create folder with the transfer title
+	result, err := tx.Exec(`
+		INSERT INTO folders (name, parent_id, created_at, updated_at) 
+		VALUES (?, NULL, datetime('now'), datetime('now'))
+	`, title)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create folder: %w", err)
+	}
+
+	folderID, err := result.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get folder ID: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	runtime.LogInfo(s.ctx, fmt.Sprintf("Created transfer folder '%s' with ID: %d", title, folderID))
+	return folderID, nil
 }

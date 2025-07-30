@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import { AcceptTransfer, RejectTransfer } from '../../../wailsjs/go/app/App';
 import styled from 'styled-components';
+import folderIcon from '../../assets/images/icons/folder-icon.svg'
+import downloadIcon from '../../assets/images/icons/download-icon.svg'
+import clockIcon from '../../assets/images/icons/clock-icon.svg'
 
 interface FileInfo {
   id: string;
@@ -86,7 +89,10 @@ export function FileRequest({ onAccept, onReject, onReceiving }: FileRequestProp
   if (!requestData) {
     return (
       <StepContent>
-        <StepTitle>Waiting for the sender to send files</StepTitle>
+        <TitleContainer>
+          <ClockIcon /> 
+          <StepTitle>Waiting for the sender to send files</StepTitle>
+        </TitleContainer>
         <LoadingContainer>
           <LoadingSpinner />
         </LoadingContainer>
@@ -99,19 +105,24 @@ export function FileRequest({ onAccept, onReject, onReceiving }: FileRequestProp
 
   return (
     <StepContent>
-      <StepTitle>
-        The sender is trying to send you {requestData.totalFiles} files. Would you like to accept them?
-      </StepTitle>
+      <TitleContainer>
+        <DownloadIcon />
+        <StepTitle>
+          The sender is trying to send you {requestData.totalFiles} files. Would you like to accept them?
+        </StepTitle>
+      </TitleContainer>
       
       <TransferCard>
-        <TransferHeader>
-          <TransferDetails>
-            <TransferTitle>{requestData.title}</TransferTitle>
-            <TransferStats>
-              {requestData.totalFiles} files • {formatFileSize(requestData.totalSize)}
-            </TransferStats>
-          </TransferDetails>
-        </TransferHeader>
+        <TransferNameContainer>
+          <FolderIcon />
+          <TransferTitle>{requestData.title}</TransferTitle>
+        </TransferNameContainer>
+        <TransferStats>
+          {requestData.totalFiles} files
+        </TransferStats>
+        <TransferStats>
+          {formatFileSize(requestData.totalSize)}
+        </TransferStats>
       </TransferCard>
 
       <ButtonsContainer>
@@ -132,23 +143,55 @@ export function FileRequest({ onAccept, onReject, onReceiving }: FileRequestProp
   );
 }
 
+const TitleContainer = styled.div`
+  justify-content: center;
+  display: flex;
+  border-bottom: 1px solid #CFCFCF;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  gap: 0.5rem;
+`
+
+const ClockIcon = styled.div`
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  background-image: url(${clockIcon});
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+`;
+const DownloadIcon = styled.div`
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  background-image: url(${downloadIcon});
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+`;
 const StepContent = styled.div`
   max-width: 600px;
   width: 100%;
   text-align: center;
+  border: 1px solid #CFCFCF;
+  border-radius: 8px;
 `;
 
-const StepTitle = styled.h2`
-  font-size: 1.2rem;
+const StepTitle = styled.p`
+  font-size: 0.9rem;
   font-weight: 600;
-  color: #212529;
-  margin-bottom: 1rem;
+  color: #5F6368;
+  text-align: center;
+  padding-left: 0.8rem;
 `;
 
 const StepSubtitle = styled.p`
+  border-top: 1px solid #CFCFCF;
+  padding: 1.5rem;
   font-size: 0.9rem;
   color: #6c757d;
-  margin-bottom: 2rem;
+  text-align: center;
 `;
 
 const LoadingContainer = styled.div`
@@ -173,59 +216,48 @@ const LoadingSpinner = styled.div`
 `;
 
 const TransferCard = styled.div`
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  margin-bottom: 2rem;
-  background-color: white;
-`;
-
-const TransferHeader = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 1.5rem;
+  margin-bottom: .5rem;
 `;
 
-const TransferDetails = styled.div`
-  flex: 1;
-  text-align: left;
+const TransferNameContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+`
+
+const FolderIcon = styled.div`
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  background-image: url(${folderIcon});
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
 `;
+
 
 const TransferTitle = styled.div`
   font-weight: 600;
-  color: #212529;
+  color: #5F6368;
   margin-bottom: 0.25rem;
   font-size: 1rem;
 `;
 
 const TransferStats = styled.div`
   font-size: 0.875rem;
-  color: #6c757d;
-`;
-
-const ProgressIndicator = styled.div`
-  width: 60px;
-  height: 4px;
-  background-color: #e9ecef;
-  border-radius: 2px;
-  position: relative;
-  
-  &::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    height: 100%;
-    width: 30%;
-    background-color: #007bff;
-    border-radius: 2px;
-  }
+  color: #5F6368;
 `;
 
 const ButtonsContainer = styled.div`
   display: flex;
   gap: 1rem;
   justify-content: center;
+  padding: 1.5rem;
+  border-top: 1px solid #CFCFCF;
 `;
 
 const Button = styled.button`
@@ -250,23 +282,12 @@ const Button = styled.button`
 
 const RejectButton = styled(Button)`
   background-color: white;
-  color: #dc3545;
-  border: 1px solid #dc3545;
-  
-  &:hover:not(:disabled) {
-    background-color: #f8f9fa;
-    border-color: #c82333;
-    color: #c82333;
-  }
+  color: #8B8E8F;
+  border: 1px solid #D9D9D9;
 `;
 
 const AcceptButton = styled(Button)`
-  background-color: #28a745;
-  color: white;
-  border: 1px solid #28a745;
-  
-  &:hover:not(:disabled) {
-    background-color: #218838;
-    border-color: #1e7e34;
-  }
+  background-color: transparent;
+  color: #8B8E8F;
+  border: 1px solid #D9D9D9;
 `;

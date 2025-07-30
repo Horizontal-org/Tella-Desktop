@@ -3,6 +3,7 @@ import styled from 'styled-components';
 interface CertificateVerificationModalProps {
   isOpen: boolean;
   certificateHash: string;
+  modalState: 'waiting' | 'confirm'; 
   onConfirm: () => void;
   onDiscard: () => void;
 }
@@ -10,6 +11,7 @@ interface CertificateVerificationModalProps {
 export function CertificateVerificationModal({ 
   isOpen, 
   certificateHash, 
+  modalState,
   onConfirm, 
   onDiscard 
 }: CertificateVerificationModalProps) {
@@ -45,9 +47,16 @@ export function CertificateVerificationModal({
           <DiscardButton onClick={onDiscard}>
             DISCARD AND START OVER
           </DiscardButton>
-          <ConfirmButton onClick={onConfirm}>
-            CONFIRM AND CONNECT
-          </ConfirmButton>
+          
+          {modalState === 'waiting' ? (
+            <WaitingButton disabled>
+              WAITING FOR THE SENDER...
+            </WaitingButton>
+          ) : (
+            <ConfirmButton onClick={onConfirm}>
+              CONFIRM AND CONNECT
+            </ConfirmButton>
+          )}
         </ModalFooter>
       </ModalContainer>
     </ModalOverlay>
@@ -162,5 +171,17 @@ const ConfirmButton = styled(Button)`
   
   &:hover {
     background-color: #218838;
+  }
+`;
+
+const WaitingButton = styled(Button)`
+  background-color: #f8f9fa;
+  color: #6c757d;
+  border: 1px solid #e9ecef;
+  cursor: not-allowed;
+  opacity: 0.7;
+  
+  &:disabled {
+    cursor: not-allowed;
   }
 `;

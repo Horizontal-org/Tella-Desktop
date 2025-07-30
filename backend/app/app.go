@@ -24,6 +24,7 @@ type App struct {
 	db                  *database.DB
 	authService         auth.Service
 	registrationService registration.Service
+	registrationHandler *registration.Handler
 	transferService     transfer.Service
 	serverService       server.Service
 	clientService       client.Service
@@ -93,7 +94,22 @@ func (a *App) Startup(ctx context.Context) {
 	}
 
 	a.registrationService = registration.NewService(a.ctx)
+	a.registrationHandler = registration.NewHandler(a.registrationService, a.ctx)
 	a.clientService = client.NewService(a.ctx)
+}
+
+func (a *App) ConfirmRegistration() error {
+	if a.registrationHandler == nil {
+		return fmt.Errorf("registration handler not initialized")
+	}
+	return a.registrationHandler.ConfirmRegistration()
+}
+
+func (a *App) RejectRegistration() error {
+	if a.registrationHandler == nil {
+		return fmt.Errorf("registration handler not initialized")
+	}
+	return a.registrationHandler.RejectRegistration()
 }
 
 // Helper method to initialize the database with encryption
@@ -126,13 +142,14 @@ func (a *App) initializeDatabase() error {
 	a.fileService = filestore.NewService(a.ctx, db.DB, dbKey)
 	runtime.LogInfo(a.ctx, "File storage service initialized")
 
-	a.transferService = transfer.NewService(a.ctx, a.fileService)
+	a.transferService = transfer.NewService(a.ctx, a.fileService, db.DB)
 	runtime.LogInfo(a.ctx, "Transfer service initialized")
 
 	// Re-initialize transfer and server services with filestore service
 	a.serverService = server.NewService(
 		a.ctx,
 		a.registrationService,
+		a.registrationHandler,
 		a.transferService,
 		a.fileService,
 		a.defaultFolderID,
@@ -199,6 +216,57 @@ func (a *App) GetStoredFiles() ([]filestore.FileInfo, error) {
 
 func (a *App) OpenFileByID(id int64) error {
 	return a.fileService.OpenFileByID(id)
+}
+
+func (a *App) GetStoredFolders() ([]filestore.FolderInfo, error) {
+	if a.fileService == nil {
+		return nil, fmt.Errorf("file service not initialized")
+	}
+	return a.fileService.GetStoredFolders()
+}
+
+func (a *App) GetFilesInFolder(folderID int64) (*filestore.FilesInFolderResponse, error) {
+	if a.fileService == nil {
+		return nil, fmt.Errorf("file service not initialized")
+	}
+	return a.fileService.GetFilesInFolder(folderID)
+}
+
+func (a *App) ExportFiles(ids []int64) ([]string, error) {
+	if a.fileService == nil {
+		return nil, fmt.Errorf("file service not initialized")
+	}
+	return a.fileService.ExportFiles(ids)
+}
+
+func (a *App) ExportZipFolders(folderIDs []int64, selectedFileIDs []int64) ([]string, error) {
+	if a.fileService == nil {
+		return nil, fmt.Errorf("file service not initialized")
+	}
+	return a.fileService.ExportZipFolders(folderIDs, selectedFileIDs)
+}
+
+func (a *App) DeleteFiles(ids []int64) error {
+	if a.fileService == nil {
+		runtime.LogError(a.ctx, "file service not initialized")
+		return fmt.Errorf("file service not initialized")
+	}
+
+	err := a.fileService.DeleteFiles(ids)
+	if err != nil {
+		runtime.LogError(a.ctx, fmt.Sprintf("DeleteFiles failed: %v", err))
+		return err
+	}
+
+	runtime.LogInfo(a.ctx, "DeleteFiles completed successfully")
+	return nil
+}
+
+func (a *App) DeleteFolders(folderIDs []int64) error {
+	if a.fileService == nil {
+		return fmt.Errorf("file service not initialized")
+	}
+	return a.fileService.DeleteFolders(folderIDs)
 }
 
 // upload functions
