@@ -209,6 +209,10 @@ func (a *App) GetLocalIPs() ([]string, error) {
 	return network.GetLocalIPs()
 }
 
+func (a *App) GetWiFiNetworkName() (string, error) {
+	return network.GetWiFiNetworkName()
+}
+
 // Filestore functions
 func (a *App) GetStoredFiles() ([]filestore.FileInfo, error) {
 	return a.fileService.GetStoredFiles()

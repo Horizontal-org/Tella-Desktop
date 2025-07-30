@@ -50,6 +50,10 @@ export function GetStoredFolders() {
   return window['go']['app']['App']['GetStoredFolders']();
 }
 
+export function GetWiFiNetworkName() {
+  return window['go']['app']['App']['GetWiFiNetworkName']();
+}
+
 export function IsFirstTimeSetup() {
   return window['go']['app']['App']['IsFirstTimeSetup']();
 }
