@@ -52,12 +52,21 @@ jobs:
       if: matrix.platform == 'linux'
       run: |
         sudo apt-get update
-        # Try the newer package first, fallback to older if needed
-        sudo apt-get install -y build-essential pkg-config libgtk-3-dev
-        sudo apt-get install -y libwebkit2gtk-4.1-dev || sudo apt-get install -y libwebkit2gtk-4.0-dev
+        # Install essential build tools
+        sudo apt-get install -y build-essential pkg-config
+        # Install GTK3 development files
+        sudo apt-get install -y libgtk-3-dev
+        # Install WebKit2GTK development files (try different versions)
+        sudo apt-get install -y libwebkit2gtk-4.0-dev || \
+        sudo apt-get install -y libwebkit2gtk-4.1-dev
+        # Install additional dependencies that might be needed
+        sudo apt-get install -y libappindicator3-dev
         
     - name: Build for ${{ matrix.platform }}
-      run: wails build -clean
+      run: |
+        # Set build tags for SQLite if needed (from your wails.json)
+        export CGO_ENABLED=1
+        wails build -clean -tags "sqlite_unlock_notify sqlite_crypt sqlcipher"
       
     - name: Prepare artifacts (Linux)
       if: matrix.platform == 'linux'
