@@ -214,13 +214,6 @@ func (a *App) GetWiFiNetworkName() (string, error) {
 }
 
 // Filestore functions
-func (a *App) GetStoredFiles() ([]filestore.FileInfo, error) {
-	return a.fileService.GetStoredFiles()
-}
-
-func (a *App) OpenFileByID(id int64) error {
-	return a.fileService.OpenFileByID(id)
-}
 
 func (a *App) GetStoredFolders() ([]filestore.FolderInfo, error) {
 	if a.fileService == nil {

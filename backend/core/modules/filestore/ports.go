@@ -6,12 +6,6 @@ type Service interface {
 	// StoreFile encrypts and stores a file in TVault, returning its metadata
 	StoreFile(folderID int64, fileName string, mimeType string, reader io.Reader) (*FileMetadata, error)
 
-	// GetStoredFiles returns a list of stored files
-	GetStoredFiles() ([]FileInfo, error)
-
-	// OpenFileByID opens a file by its ID
-	OpenFileByID(id int64) error
-
 	// GetStoredFolders returns a list of folders with file counts
 	GetStoredFolders() ([]FolderInfo, error)
 

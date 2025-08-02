@@ -42,10 +42,6 @@ export function GetServerPIN() {
   return window['go']['app']['App']['GetServerPIN']();
 }
 
-export function GetStoredFiles() {
-  return window['go']['app']['App']['GetStoredFiles']();
-}
-
 export function GetStoredFolders() {
   return window['go']['app']['App']['GetStoredFolders']();
 }
@@ -60,10 +56,6 @@ export function IsFirstTimeSetup() {
 
 export function IsServerRunning() {
   return window['go']['app']['App']['IsServerRunning']();
-}
-
-export function OpenFileByID(arg1) {
-  return window['go']['app']['App']['OpenFileByID'](arg1);
 }
 
 export function RegisterWithDevice(arg1, arg2, arg3) {

@@ -8,9 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -78,24 +76,6 @@ func GenerateFileKey(fileUUID string, dbKey []byte) []byte {
 	hash.Write(dbKey)
 	hash.Write([]byte(fileUUID))
 	return hash.Sum(nil)
-}
-
-// OpenFileWithDefaultApp opens a file with the system's default application
-func OpenFileWithDefaultApp(filePath string) error {
-	var cmd *exec.Cmd
-
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = exec.Command("open", filePath)
-	case "windows":
-		cmd = exec.Command("cmd", "/c", "start", "", filePath)
-	case "linux":
-		cmd = exec.Command("xdg-open", filePath)
-	default:
-		return fmt.Errorf("unsupported operating system")
-	}
-
-	return cmd.Start()
 }
 
 // CreateUniqueFilename creates a unique filename by appending a counter if the file already exists
