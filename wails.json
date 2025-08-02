@@ -10,5 +10,22 @@
     "name": "valbuenag",
     "email": "valbuena52@gmail.com"
   },
-  "buildTags": "sqlite_unlock_notify sqlite_crypt sqlcipher"
+  "buildTags": "sqlite_unlock_notify sqlite_crypt sqlcipher",
+  "info": {
+    "productName": "Tella Desktop",
+    "productVersion": "1.0.0",
+    "copyright": "© 2025 Horizontal",
+    "comments": "A desktop version of the Tella app made to share files offline via p2p"
+  },
+  "darwin": {
+    "sign": true,
+    "codesign": {
+      "identity": "Developer ID Application: YOUR_ORG_NAME (YOUR_TEAM_ID)",
+      "entitlements": "build/darwin/entitlements.plist",
+      "options": [
+        "--timestamp",
+        "--options=runtime"
+      ]
+    }
+  }
 }
