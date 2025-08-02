@@ -31,13 +31,9 @@ export function IsFirstTimeSetup():Promise<boolean>;
 
 export function IsServerRunning():Promise<boolean>;
 
-export function RegisterWithDevice(arg1:string,arg2:number,arg3:string):Promise<void>;
-
 export function RejectRegistration():Promise<void>;
 
 export function RejectTransfer(arg1:string):Promise<void>;
-
-export function SendTestFile(arg1:string,arg2:number,arg3:string):Promise<void>;
 
 export function Shutdown(arg1:context.Context):Promise<void>;
 

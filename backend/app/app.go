@@ -7,7 +7,6 @@ import (
 
 	"Tella-Desktop/backend/core/database"
 	"Tella-Desktop/backend/core/modules/auth"
-	"Tella-Desktop/backend/core/modules/client"
 	"Tella-Desktop/backend/core/modules/filestore"
 	"Tella-Desktop/backend/core/modules/registration"
 	"Tella-Desktop/backend/core/modules/server"
@@ -27,17 +26,8 @@ type App struct {
 	registrationHandler *registration.Handler
 	transferService     transfer.Service
 	serverService       server.Service
-	clientService       client.Service
 	fileService         filestore.Service
 	defaultFolderID     int64
-}
-
-func (a *App) RegisterWithDevice(ip string, port int, pin string) error {
-	return a.clientService.RegisterWithDevice(ip, port, pin)
-}
-
-func (a *App) SendTestFile(ip string, port int, pin string) error {
-	return a.clientService.SendTestFile(ip, port, pin)
 }
 
 // Auth related methods to expose to frontend
@@ -95,7 +85,6 @@ func (a *App) Startup(ctx context.Context) {
 
 	a.registrationService = registration.NewService(a.ctx)
 	a.registrationHandler = registration.NewHandler(a.registrationService, a.ctx)
-	a.clientService = client.NewService(a.ctx)
 }
 
 func (a *App) ConfirmRegistration() error {

@@ -58,20 +58,12 @@ export function IsServerRunning() {
   return window['go']['app']['App']['IsServerRunning']();
 }
 
-export function RegisterWithDevice(arg1, arg2, arg3) {
-  return window['go']['app']['App']['RegisterWithDevice'](arg1, arg2, arg3);
-}
-
 export function RejectRegistration() {
   return window['go']['app']['App']['RejectRegistration']();
 }
 
 export function RejectTransfer(arg1) {
   return window['go']['app']['App']['RejectTransfer'](arg1);
-}
-
-export function SendTestFile(arg1, arg2, arg3) {
-  return window['go']['app']['App']['SendTestFile'](arg1, arg2, arg3);
 }
 
 export function Shutdown(arg1) {
