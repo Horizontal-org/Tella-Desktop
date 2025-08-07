@@ -1,6 +1,8 @@
 package constants
 
-import "errors"
+import (
+	"errors"
+)
 
 // Authentication constants
 const (

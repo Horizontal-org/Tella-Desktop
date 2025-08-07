@@ -45,6 +45,23 @@ wails build
 
 The built application will be in the `build/bin` directory.
 
+### Building for Windows
+
+We can leverage the Zig toolchain to easily cross-compile golang projects with CGO
+dependencies, as demonstrated in [article 1](https://infinitedigits.co/tinker/go-and-zig/),
+[article 2](https://archive.is/6zlX8) and combine that with Wails [manual
+builds](https://wails.io/docs/guides/manual-builds/#manual-steps-3).
+
+* Install the [Zig compiler](https://wiki.archlinux.org/title/Zig)
+* Run the script `build-for-windows.sh`
+
+The Windows executable will be saved as `tella.exe`.
+
+`build-for-windows.sh`
+```sh
+#!/bin/bash
+CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC="zig cc -target x86_64-windows" CXX="zig cc -target x86_64-windows" go build -tags desktop,production -ldflags "-w -s -H windowsgui" -o tella.exe
+```
 
 ## Protocol Support
 

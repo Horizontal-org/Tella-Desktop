@@ -3,7 +3,6 @@ package database
 import (
 	"Tella-Desktop/backend/utils/authutils"
 	"database/sql"
-	"embed"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -11,9 +10,6 @@ import (
 
 	_ "github.com/mutecomm/go-sqlcipher/v4"
 )
-
-//go:embed migrations/*.sql
-var migrationsFS embed.FS
 
 type DB struct {
 	*sql.DB
@@ -72,35 +68,17 @@ func Initialize(dbPath string, key []byte) (*DB, error) {
 }
 
 func runMigrations(db *sql.DB) error {
-	// Read migration files
-	files, err := migrationsFS.ReadDir("migrations")
-	if err != nil {
-		return fmt.Errorf("failed to read migrations directory: %v", err)
-	}
-
 	// Begin transaction
 	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %v", err)
 	}
 	defer tx.Rollback()
-
-	// Execute each migration file
-	for _, file := range files {
-		if filepath.Ext(file.Name()) != ".sql" {
-			continue
-		}
-
-		content, err := migrationsFS.ReadFile(filepath.Join("migrations", file.Name()))
-		if err != nil {
-			return fmt.Errorf("failed to read migration file %s: %v", file.Name(), err)
-		}
-
-		if _, err := tx.Exec(string(content)); err != nil {
-			return fmt.Errorf("failed to execute migration %s: %v", file.Name(), err)
+	for _, migration := range getMigrations() {
+		if _, err := tx.Exec(string(migration.Content)); err != nil {
+			return fmt.Errorf("failed to execute migration %s: %v", migration.Name, err)
 		}
 	}
-
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %v", err)
