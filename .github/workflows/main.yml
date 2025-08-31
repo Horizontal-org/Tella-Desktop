@@ -6,7 +6,7 @@ jobs:
   package:
     strategy:
       matrix:
-        platform: [macos-latest, windows-latest, ubuntu-latest]
+        platform: [macos-latest, ubuntu-24.04, ubuntu-latest]
         go-version: [1.24.1]
     runs-on: ${{ matrix.platform }}
     steps:
@@ -38,7 +38,7 @@ jobs:
       - name: Get Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.10.2
       - name: Install zig (cgo Windows builds)
-        if: matrix.platform == 'Windows-latest'
+        if: matrix.platform == 'ubuntu-24.04'
         uses: mlugg/setup-zig@v2
         with:
           version: 0.14.1
@@ -55,8 +55,8 @@ jobs:
           rm -rf "Tella.app"
           wails build --platform "darwin/universal" --ldflags="-s -w" -o "tella.app"
           appdmg ./dmg.json ./build/bin/tella.dmg
-      - name: Build Windows
-        if: matrix.platform == 'windows-latest'
+      - name: Build for Windows (on linux!)
+        if: matrix.platform == 'ubuntu-24.04'
         run: |
           CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC="zig cc -target x86_64-windows" CXX="zig cc -target x86_64-windows" wails build -ldflags "-w -s" -o tella.exe
       - name: Build Linux
@@ -70,7 +70,7 @@ jobs:
           name: wails-binaries-macos
           path: build/bin/*
       - name: upload artifacts windows
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'ubuntu-24.04'
         uses: actions/upload-artifact@v4
         with:
           name: wails-binaries-windows
