@@ -36,7 +36,7 @@ jobs:
           fi
       # You may need to manually build you frontend here, unless you have configured frontend build and install commands in wails.json.
       - name: Get Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@2.10.2
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.10.2
       - name: Install zig (cgo Windows builds)
         if: matrix.platform == 'Windows-latest'
         uses: mlugg/setup-zig@v2
