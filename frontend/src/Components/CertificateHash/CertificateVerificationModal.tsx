@@ -8,6 +8,21 @@ interface CertificateVerificationModalProps {
   onDiscard: () => void;
 }
 
+function formatHash(hashString: string): string {
+    const input = [];
+    for (let i = 0; i <= hashString.length; i += 4) {
+        // grab groups of 4 characters each
+        let entry = hashString.slice(i, i+4) + " ";
+        // output a newline after four groups of 4
+        if (((i+4) % 16) === 0) {
+            entry += "\n";
+        }
+        input.push(entry);
+    }
+    // trim the last newline and return as a string
+    return input.join("").trim();
+}
+
 export function CertificateVerificationModal({ 
   isOpen, 
   certificateHash, 
@@ -16,10 +31,6 @@ export function CertificateVerificationModal({
   onDiscard 
 }: CertificateVerificationModalProps) {
   if (!isOpen) return null;
-
-  const formatHash = (hash: string) => {
-    return hash.match(/.{1,4}/g)?.join(' ') || hash;
-  };
 
   return (
     <ModalOverlay>
@@ -34,7 +45,9 @@ export function CertificateVerificationModal({
           </Description>
           
           <HashContainer>
-            <HashText>{formatHash(certificateHash)}</HashText>
+            <pre>
+                <HashText>{formatHash(certificateHash)}</HashText>
+            </pre>
           </HashContainer>
           
           <Warning>
@@ -117,7 +130,6 @@ const HashContainer = styled.div`
   border: 1px solid #e9ecef;
   border-radius: 8px;
   padding: 1.5rem;
-  margin-bottom: 2rem;
 `;
 
 const HashText = styled.code`
