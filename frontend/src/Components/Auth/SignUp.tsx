@@ -58,7 +58,7 @@ export function SignUp({ onLoginSuccess, initialError = '' }: SignUpProps) {
   return (
     <AuthContainer>
       <AuthCard>
-        <CardTitle>Welcome to Tella Desktop</CardTitle>
+        <CardTitle>Welcome to Tella</CardTitle>
         <CardSubtitle>
           Create a password to log into Tella and access your files. Your password must be at least 8 characters long.
         </CardSubtitle>

@@ -335,7 +335,7 @@ export function FolderList() {
         </p>
         <p>
           Remember that for now, it is not possible to re-import files 
-          from your computer into Tella Desktop.
+          from your computer into Tella.
         </p>
       </Dialog>
 
@@ -348,7 +348,7 @@ export function FolderList() {
       >
         <p>
           Deleting {selectedFolders.size === 1 ? 'this folder' : `these ${selectedFolders.size} folders`} will permanently delete {selectedFolders.size === 1 ? 'it' : 'them'} and all files inside from 
-          Tella Desktop. This action cannot be reversed.
+          Tella. This action cannot be reversed.
         </p>
       </Dialog>
 
@@ -356,14 +356,14 @@ export function FolderList() {
         isOpen={showExportLoading}
         onCancel={handleDialogCancel}
         title="Your folders are exporting"
-        message="Please wait while your folders are being exported as ZIP files. Do not close Tella Desktop or the export may fail."
+        message="Please wait while your folders are being exported as ZIP files. Do not close Tella or the export may fail."
       />
 
       <LoadingDialog
         isOpen={showDeleteLoading}
         onCancel={handleDialogCancel}
         title="Deleting folders"
-        message="Please wait while your folders and files are being permanently deleted. Do not close Tella Desktop or the deletion may fail."
+        message="Please wait while your folders and files are being permanently deleted. Do not close Tella or the deletion may fail."
       />
 
       <SuccessToast

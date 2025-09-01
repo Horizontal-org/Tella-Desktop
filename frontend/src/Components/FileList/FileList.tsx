@@ -429,7 +429,7 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
         </p>
         <p>
           Remember that for now, it is not possible to re-import files 
-          from your computer into Tella Desktop.
+          from your computer into Tella.
         </p>
       </Dialog>
 
@@ -446,7 +446,7 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
         </p>
         <p>
           Remember that for now, it is not possible to re-import files 
-          from your computer into Tella Desktop.
+          from your computer into Tella.
         </p>
       </Dialog>
 
@@ -459,7 +459,7 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
       >
         <p>
           Deleting {selectedFiles.size === 1 ? 'this file' : `these ${selectedFiles.size} files`} will delete {selectedFiles.size === 1 ? 'it' : 'them'} from 
-          Tella Desktop and the system. This action is permanent and cannot be reversed.
+          Tella and the system. This action is permanent and cannot be reversed.
         </p>
       </Dialog>
 
@@ -467,14 +467,14 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
         isOpen={showExportLoading}
         onCancel={handleDialogCancel}
         title="Your files are exporting"
-        message="Please wait while your files are exporting. Do not close Tella Desktop or the export may fail."
+        message="Please wait while your files are exporting. Do not close Tella or the export may fail."
       />
 
       <LoadingDialog
         isOpen={showDeleteLoading}
         onCancel={handleLoadingCancel}
         title="Deleting files"
-        message="Please wait while your files are being permanently deleted. Do not close Tella Desktop or the deletion may fail."
+        message="Please wait while your files are being permanently deleted. Do not close Tella or the deletion may fail."
       />
 
       <SuccessToast

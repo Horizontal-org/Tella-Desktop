@@ -93,7 +93,7 @@ export function LoadingDialog({
   isOpen, 
   onCancel,
   title = "Processing",
-  message = "Please wait while your request is being processed. Do not close Tella Desktop or the operation may fail."
+  message = "Please wait while your request is being processed. Do not close Tella or the operation may fail."
 }: LoadingDialogProps) {
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
