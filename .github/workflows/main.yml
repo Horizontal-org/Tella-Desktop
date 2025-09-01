@@ -50,10 +50,11 @@ jobs:
       - name: Build OSX 
         if: matrix.platform == 'macos-latest'
         # TODO: get OSX signing working
+        # Tella-Desktop.app is a folder, while tella.app is the executable inside that folder -- confusing? Yes, unfortunately!
         run: |
           echo "Removing old .app"
-          rm -rf "Tella-Desktop.app" # Tella-Desktop.app is a folder, while Tella.app is the executable inside that folder -- confusing? Yes, unfortunately!
-          wails build --platform "darwin/universal" --ldflags="-s -w" -o "Tella.app"
+          rm -rf "Tella-Desktop.app" 
+          wails build --platform "darwin/universal" --ldflags="-s -w" -o "tella.app"
           appdmg ./dmg.json ./build/bin/tella.dmg
       - name: Build for Windows (on linux!)
         if: matrix.platform == 'ubuntu-24.04'
