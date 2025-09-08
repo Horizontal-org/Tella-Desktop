@@ -54,7 +54,7 @@ jobs:
         run: |
           echo "Removing old .app"
           rm -rf "Tella-Desktop.app" 
-          wails build --platform "darwin/universal" --ldflags="-s -w" -o "tella.app"
+          wails build --platform "darwin/universal" --ldflags="-s -w"
           appdmg ./dmg.json ./build/bin/tella.dmg
       - name: Build for Windows (on linux!)
         if: matrix.platform == 'ubuntu-24.04'
