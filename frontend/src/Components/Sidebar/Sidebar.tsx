@@ -7,12 +7,14 @@ import receivedIcon from '../../assets/images/icons/received-icon.svg'
 import lockIcon from '../../assets/images/icons/lock-icon.svg'
 import { useServerState, useServerActions } from '../../Contexts/ServerContext';
 import { Dialog } from '../Dialog/Dialog';
+import { LockApp } from '../../../wailsjs/go/app/App';
 
 interface SidebarProps {
   className?: string;
+  onLock?: () => void;
 }
 
-export function Sidebar({ className }: SidebarProps) {
+export function Sidebar({ className, onLock }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -41,8 +43,15 @@ export function Sidebar({ className }: SidebarProps) {
     return false;
   };
 
-  const handleLock = () => {
-    console.log('Lock button clicked')
+  const handleLock = async () => {
+    try {
+      await LockApp();
+      if (onLock) {
+        onLock();
+      }
+    } catch (error) {
+      console.error('Failed to lock app:', error);
+    }
   }
 
   const handleExitConfirm = async () => {

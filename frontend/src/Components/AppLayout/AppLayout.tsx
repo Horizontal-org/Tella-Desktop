@@ -4,15 +4,17 @@ import { Sidebar } from '../Sidebar/Sidebar';
 
 interface AppLayoutProps {
   children: React.ReactNode;
+  onLock?: () => void;
 }
 
-export function AppLayout({ 
+export function AppLayout({
   children,
+  onLock
 }: AppLayoutProps) {
   return (
     <LayoutContainer>
-      <Sidebar />
-      
+      <Sidebar onLock={onLock} />
+
       <MainContent>
         <ContentSection>
           {children}

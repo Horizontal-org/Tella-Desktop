@@ -269,3 +269,34 @@ func (a *App) RejectTransfer(sessionID string) error {
 	}
 	return a.transferService.RejectTransfer(sessionID)
 }
+
+// LockApp locks the application by closing database and clearing auth state
+func (a *App) LockApp() error {
+	// Stop the server if it's running
+	if a.serverService != nil && a.serverService.IsRunning() {
+		if err := a.serverService.Stop(a.ctx); err != nil {
+			runtime.LogError(a.ctx, "Failed to stop server during lock: "+err.Error())
+		}
+	}
+
+	// Close database connection
+	if a.db != nil {
+		a.db.Close()
+		a.db = nil
+		runtime.LogInfo(a.ctx, "Database connection closed for lock")
+	}
+
+	// Clear services that depend on database
+	a.fileService = nil
+	a.transferService = nil
+	a.serverService = nil
+	a.defaultFolderID = 0
+
+	// Clear auth state
+	if a.authService != nil {
+		a.authService.ClearSession()
+	}
+
+	runtime.LogInfo(a.ctx, "Application locked successfully")
+	return nil
+}

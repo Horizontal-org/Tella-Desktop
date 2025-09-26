@@ -58,6 +58,10 @@ export function IsServerRunning() {
   return window['go']['app']['App']['IsServerRunning']();
 }
 
+export function LockApp() {
+  return window['go']['app']['App']['LockApp']();
+}
+
 export function RejectRegistration() {
   return window['go']['app']['App']['RejectRegistration']();
 }
