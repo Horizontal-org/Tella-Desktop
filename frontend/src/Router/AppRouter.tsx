@@ -8,9 +8,10 @@ import { FolderList } from '../Components/FolderList';
 interface AppRouterProps {
   isAuthenticated: boolean;
   onLoginSuccess: () => void;
+  onLock: () => void;
 }
 
-export function AppRouter({ isAuthenticated, onLoginSuccess }: AppRouterProps) {
+export function AppRouter({ isAuthenticated, onLoginSuccess, onLock }: AppRouterProps) {
   return (
     <BrowserRouter>
       <Routes>
@@ -25,11 +26,11 @@ export function AppRouter({ isAuthenticated, onLoginSuccess }: AppRouterProps) {
           } 
         />
 
-        <Route 
-          path="/*" 
+        <Route
+          path="/*"
           element={
             <ProtectedRoute isAuthenticated={isAuthenticated}>
-              <AppLayout>
+              <AppLayout onLock={onLock}>
                 <Routes>
                   <Route path="/" element={<FolderList />} />
                   <Route path="/folder/:folderId" element={<FileList />} />
@@ -38,7 +39,7 @@ export function AppRouter({ isAuthenticated, onLoginSuccess }: AppRouterProps) {
                 </Routes>
               </AppLayout>
             </ProtectedRoute>
-          } 
+          }
         />
       </Routes>
     </BrowserRouter>

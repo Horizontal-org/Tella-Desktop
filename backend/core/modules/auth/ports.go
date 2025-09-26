@@ -17,4 +17,7 @@ type Service interface {
 
 	// GetDBKey returns the current database key (only if unlocked)
 	GetDBKey() ([]byte, error)
+
+	// ClearSession clears the current authentication session
+	ClearSession()
 }

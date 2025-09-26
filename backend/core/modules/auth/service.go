@@ -139,3 +139,16 @@ func (s *service) GetDBKey() ([]byte, error) {
 	}
 	return s.databaseKey, nil
 }
+
+func (s *service) ClearSession() {
+	// Clear the database key from memory
+	if s.databaseKey != nil {
+		// Zero out the key for security
+		for i := range s.databaseKey {
+			s.databaseKey[i] = 0
+		}
+		s.databaseKey = nil
+	}
+	s.isUnlocked = false
+	runtime.LogInfo(s.ctx, "Session cleared")
+}

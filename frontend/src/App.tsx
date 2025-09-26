@@ -9,9 +9,16 @@ function App() {
     setIsAuthenticated(true);
   };
 
+  const handleLock = () => {
+    setIsAuthenticated(false);
+  };
 
   return (
-    <AppRouter isAuthenticated={isAuthenticated} onLoginSuccess={handleLoginSuccess}/>
+    <AppRouter
+      isAuthenticated={isAuthenticated}
+      onLoginSuccess={handleLoginSuccess}
+      onLock={handleLock}
+    />
   );
 }
 
