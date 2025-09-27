@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from 'react-router-dom';
 import { GetLocalIPs, RejectRegistration, ConfirmRegistration, GetWiFiNetworkName } from "../../../../wailsjs/go/app/App";
 import { EventsOn } from "../../../../wailsjs/runtime/runtime";
@@ -44,6 +44,10 @@ export function useNearbySharing() {
   const [certificateHash, setCertificateHash] = useState<string>('');
   const [modalState, setModalState] = useState<ModalState>('waiting');
 
+  // Connection mode state
+  const [isUsingQRMode, setIsUsingQRMode] = useState(true);
+  const isUsingQRModeRef = useRef(true);
+
   // Initialize network info and event listeners
   useEffect(() => {
     const fetchNetworkInfo = async () => {
@@ -75,7 +79,27 @@ export function useNearbySharing() {
 
     const cleanupRegisterListener = EventsOn("register-request-received", (data) => {
       console.log("Register request received:", data);
-      setModalState('confirm');
+      console.log("Current QR mode:", isUsingQRModeRef.current);
+
+      if (isUsingQRModeRef.current) {
+        console.log("🔗 QR mode active - auto-confirming registration");
+        // Auto-confirm for QR mode
+        ConfirmRegistration()
+          .then(() => {
+            console.log("✅ QR registration confirmed successfully");
+            setCurrentStep('accept');
+          })
+          .catch((error) => {
+            console.error("❌ Failed to auto-confirm QR registration:", error);
+            // Fall back to manual confirmation
+            setModalState('confirm');
+            setShowVerificationModal(true);
+          });
+      } else {
+        console.log("📱 Manual mode - showing confirmation modal");
+        // Manual mode - show certificate verification modal
+        setModalState('confirm');
+      }
     });
 
     const cleanupCertListener = EventsOn("certificate-hash", (data) => {
@@ -196,6 +220,8 @@ export function useNearbySharing() {
     setCertificateHash('');
     setModalState('waiting');
     setCurrentStep('intro');
+    setIsUsingQRMode(true);
+    isUsingQRModeRef.current = true;
   };
 
   return {
@@ -212,9 +238,17 @@ export function useNearbySharing() {
     showVerificationModal,
     certificateHash,
     modalState,
+    isUsingQRMode,
     
     // State setters
     setIsWifiConfirmed,
+
+    // QR mode handler
+    handleQRModeChange: (isQR: boolean) => {
+      setIsUsingQRMode(isQR);
+      isUsingQRModeRef.current = isQR;
+      console.log("QR mode changed to:", isQR);
+    },
     
     // Actions
     handleBack,
