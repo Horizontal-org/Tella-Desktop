@@ -10,9 +10,10 @@ interface ConnectStepProps {
   serverRunning: boolean;
   localIPs: string[];
   certificateHash: string;
+  onModeChange?: (isQRMode: boolean) => void;
 }
 
-export function ConnectStep({ serverRunning, localIPs, certificateHash }: ConnectStepProps) {
+export function ConnectStep({ serverRunning, localIPs, certificateHash, onModeChange }: ConnectStepProps) {
   const [isQRMode, setIsQRMode] = useState(false);
   const [qrCodeDataURL, setQrCodeDataURL] = useState('');
   const [pin, setPin] = useState('');
@@ -52,7 +53,9 @@ export function ConnectStep({ serverRunning, localIPs, certificateHash }: Connec
   }, [serverRunning, localIPs, certificateHash, pin]);
 
   function toggleQRCode() {
-    setIsQRMode(!isQRMode);
+    const newMode = !isQRMode;
+    setIsQRMode(newMode);
+    onModeChange?.(newMode);
   }
   return (
     <StepContent>
