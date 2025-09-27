@@ -58,9 +58,10 @@ export function NearbySharing() {
         )}
         
         {currentStep === 'connect' && (
-          <ConnectStep 
-            serverRunning={serverRunning} 
+          <ConnectStep
+            serverRunning={serverRunning}
             localIPs={localIPs}
+            certificateHash={certificateHash}
           />
         )}
         
