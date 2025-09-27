@@ -21,7 +21,8 @@ export function NearbySharing() {
     showVerificationModal,
     certificateHash,
     modalState,
-    
+    isUsingQRMode,
+
     setIsWifiConfirmed,
     handleQRModeChange,
     isLoadingWifi,
@@ -63,6 +64,7 @@ export function NearbySharing() {
             serverRunning={serverRunning}
             localIPs={localIPs}
             certificateHash={certificateHash}
+            isQRMode={isUsingQRMode}
             onModeChange={handleQRModeChange}
           />
         )}

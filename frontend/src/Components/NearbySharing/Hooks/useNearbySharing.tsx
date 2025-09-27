@@ -45,8 +45,8 @@ export function useNearbySharing() {
   const [modalState, setModalState] = useState<ModalState>('waiting');
 
   // Connection mode state
-  const [isUsingQRMode, setIsUsingQRMode] = useState(false);
-  const isUsingQRModeRef = useRef(false);
+  const [isUsingQRMode, setIsUsingQRMode] = useState(true);
+  const isUsingQRModeRef = useRef(true);
 
   // Initialize network info and event listeners
   useEffect(() => {
@@ -220,8 +220,8 @@ export function useNearbySharing() {
     setCertificateHash('');
     setModalState('waiting');
     setCurrentStep('intro');
-    setIsUsingQRMode(false);
-    isUsingQRModeRef.current = false;
+    setIsUsingQRMode(true);
+    isUsingQRModeRef.current = true;
   };
 
   return {
@@ -238,6 +238,7 @@ export function useNearbySharing() {
     showVerificationModal,
     certificateHash,
     modalState,
+    isUsingQRMode,
     
     // State setters
     setIsWifiConfirmed,
