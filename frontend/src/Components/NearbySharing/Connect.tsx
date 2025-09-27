@@ -58,11 +58,18 @@ export function ConnectStep({ serverRunning, localIPs, certificateHash, isQRMode
   }
   return (
     <StepContent>
-      <StepTitle>The sender should input the following information in Tella on their phone.</StepTitle>
-      
+      <StepTitle>
+        {isQRMode
+          ? "The sender should scan the QR code using Tella on their phone."
+          : "The sender should input the following information in Tella on their phone."
+        }
+      </StepTitle>
+
       <DeviceInfoCard>
         <DeviceInfoHeader>
-          <DeviceInfoTitle>Your device information</DeviceInfoTitle>
+          <DeviceInfoTitle>
+            {isQRMode ? "Your QR code" : "Your device information"}
+          </DeviceInfoTitle>
         </DeviceInfoHeader>
         
         {isQRMode ? (
@@ -93,7 +100,10 @@ export function ConnectStep({ serverRunning, localIPs, certificateHash, isQRMode
         )}
 
         <BackToAutoButton>
-          Go back to automatic connection
+          {isQRMode
+            ? "Having trouble with the QR code?"
+            : "Go back to automatic connection"
+          }
         </BackToAutoButton>
         
         <QRCodeButton onClick={toggleQRCode}>
@@ -205,11 +215,11 @@ const QRCodeContainer = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 2rem;
+  padding: 1rem;
 `;
 
 const QRCodeImage = styled.img`
-  max-width: 200px;
+  max-width: 150px;
   width: 100%;
   height: auto;
 `;
