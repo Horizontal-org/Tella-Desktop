@@ -101,6 +101,125 @@ func CreateUniqueFilename(dir, fileName string) string {
 	}
 }
 
+// GetFileExtensionFromMimeType returns the appropriate file extension for a given mimetype
+func GetFileExtensionFromMimeType(mimeType string) string {
+	// Common image formats
+	switch mimeType {
+	case "image/jpeg", "image/jpg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	case "image/tiff":
+		return ".tiff"
+	case "image/bmp":
+		return ".bmp"
+	case "image/heic":
+		return ".heic"
+	case "image/heif":
+		return ".heif"
+
+	// Video formats
+	case "video/mp4":
+		return ".mp4"
+	case "video/avi":
+		return ".avi"
+	case "video/mov", "video/quicktime":
+		return ".mov"
+	case "video/wmv":
+		return ".wmv"
+	case "video/flv":
+		return ".flv"
+	case "video/webm":
+		return ".webm"
+	case "video/3gpp":
+		return ".3gp"
+
+	// Audio formats
+	case "audio/mpeg", "audio/mp3":
+		return ".mp3"
+	case "audio/wav":
+		return ".wav"
+	case "audio/aac":
+		return ".aac"
+	case "audio/ogg":
+		return ".ogg"
+	case "audio/flac":
+		return ".flac"
+	case "audio/m4a":
+		return ".m4a"
+
+	// Document formats
+	case "application/pdf":
+		return ".pdf"
+	case "application/msword":
+		return ".doc"
+	case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+		return ".docx"
+	case "application/vnd.ms-excel":
+		return ".xls"
+	case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+		return ".xlsx"
+	case "application/vnd.ms-powerpoint":
+		return ".ppt"
+	case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+		return ".pptx"
+	case "text/plain":
+		return ".txt"
+	case "text/html":
+		return ".html"
+	case "text/css":
+		return ".css"
+	case "application/javascript", "text/javascript":
+		return ".js"
+	case "application/json":
+		return ".json"
+	case "application/xml", "text/xml":
+		return ".xml"
+
+	// Archive formats
+	case "application/zip":
+		return ".zip"
+	case "application/x-rar-compressed":
+		return ".rar"
+	case "application/x-tar":
+		return ".tar"
+	case "application/gzip":
+		return ".gz"
+
+	// Default case: try to extract from mimetype
+	default:
+		if strings.HasPrefix(mimeType, "image/") {
+			return ".img"
+		}
+		if strings.HasPrefix(mimeType, "video/") {
+			return ".video"
+		}
+		if strings.HasPrefix(mimeType, "audio/") {
+			return ".audio"
+		}
+		if strings.HasPrefix(mimeType, "text/") {
+			return ".txt"
+		}
+		return ".file"
+	}
+}
+
+// EnsureFileExtension ensures a filename has the correct extension based on its mimetype
+func EnsureFileExtension(fileName, mimeType string) string {
+	// Check if the filename already has an extension
+	if filepath.Ext(fileName) != "" {
+		return fileName // Already has an extension, keep it
+	}
+
+	// No extension found, add one based on mimetype
+	extension := GetFileExtensionFromMimeType(mimeType)
+	return fileName + extension
+}
+
 // FileInfo represents basic file information
 type FileInfo struct {
 	ID        int64  `json:"id"`
@@ -235,8 +354,11 @@ func ExportSingleFile(db *sql.DB, dbKey []byte, id int64, tvault *os.File, expor
 		return "", fmt.Errorf("failed to decrypt file: %w", err)
 	}
 
+	// Ensure filename has proper extension based on mimetype
+	fileName := EnsureFileExtension(metadata.Name, metadata.MimeType)
+
 	// Create unique filename in export directory
-	exportPath := CreateUniqueFilename(exportDir, metadata.Name)
+	exportPath := CreateUniqueFilename(exportDir, fileName)
 
 	// Create the exported file
 	exportFile, err := os.Create(exportPath)
@@ -315,8 +437,11 @@ func AddFileToZip(db *sql.DB, dbKey []byte, zipWriter *zip.Writer, file FileInfo
 		return fmt.Errorf("failed to decrypt file: %w", err)
 	}
 
+	// Ensure filename has proper extension for ZIP entry
+	fileName := EnsureFileExtension(file.Name, file.MimeType)
+
 	// Create file in ZIP
-	fileWriter, err := zipWriter.Create(file.Name)
+	fileWriter, err := zipWriter.Create(fileName)
 	if err != nil {
 		return fmt.Errorf("failed to create file in ZIP: %w", err)
 	}
