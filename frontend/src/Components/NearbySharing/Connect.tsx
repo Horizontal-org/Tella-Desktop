@@ -1,44 +1,113 @@
 import styled from 'styled-components';
+import { useState, useEffect } from 'react';
 import { PinDisplay } from "../PinDisplay";
+import { GetServerPIN } from '../../../wailsjs/go/app/App';
+import QRCode from 'qrcode';
 
 const SERVER_PORT = 53317;
 
 interface ConnectStepProps {
   serverRunning: boolean;
   localIPs: string[];
+  certificateHash: string;
+  isQRMode: boolean;
+  onModeChange?: (isQRMode: boolean) => void;
 }
 
-export function ConnectStep({ serverRunning, localIPs }: ConnectStepProps) {
+export function ConnectStep({ serverRunning, localIPs, certificateHash, isQRMode, onModeChange }: ConnectStepProps) {
+  const [qrCodeDataURL, setQrCodeDataURL] = useState('');
+  const [pin, setPin] = useState('');
+
+  useEffect(() => {
+    const generateQR = async () => {
+      if (serverRunning && localIPs.length > 0 && certificateHash && pin) {
+        try {
+          const qrData = {
+            ip_address: localIPs[0],
+            port: SERVER_PORT,
+            certificate_hash: certificateHash,
+            pin: pin
+          };
+
+          const dataURL = await QRCode.toDataURL(JSON.stringify(qrData));
+          setQrCodeDataURL(dataURL);
+        } catch (error) {
+          console.error('Failed to generate QR code:', error);
+        }
+      }
+    };
+
+    const fetchPIN = async () => {
+      if (serverRunning) {
+        try {
+          const currentPIN = await GetServerPIN();
+          setPin(currentPIN);
+        } catch (error) {
+          console.error('Failed to get PIN:', error);
+        }
+      }
+    };
+
+    fetchPIN();
+    generateQR();
+  }, [serverRunning, localIPs, certificateHash, pin]);
+
+  function toggleQRCode() {
+    const newMode = !isQRMode;
+    onModeChange?.(newMode);
+  }
   return (
     <StepContent>
-      <StepTitle>The sender should input the following information in Tella on their phone.</StepTitle>
-      
+      <StepTitle>
+        {isQRMode
+          ? "The sender should scan the QR code using Tella on their phone."
+          : "The sender should input the following information in Tella on their phone."
+        }
+      </StepTitle>
+
       <DeviceInfoCard>
         <DeviceInfoHeader>
-          <DeviceInfoTitle>Your device information</DeviceInfoTitle>
+          <DeviceInfoTitle>
+            {isQRMode ? "Your QR code" : "Your device information"}
+          </DeviceInfoTitle>
         </DeviceInfoHeader>
         
-        <InfoRow>
-          <InfoLabel>IP ADDRESS</InfoLabel>
-          <InfoValue>{localIPs.join(', ')}</InfoValue>
-        </InfoRow>
-        
-        <InfoRow>
-          <InfoLabel>PIN</InfoLabel>
-          <InfoValue><PinDisplay serverRunning={serverRunning} /></InfoValue>
-        </InfoRow>
-        
-        <InfoRow>
-          <InfoLabel>Port</InfoLabel>
-          <InfoValue>{SERVER_PORT}</InfoValue>
-        </InfoRow>
+        {isQRMode ? (
+          <QRCodeContainer>
+            {qrCodeDataURL ? (
+              <QRCodeImage src={qrCodeDataURL} alt="QR Code" />
+            ) : (
+              <div>Generating QR code...</div>
+            )}
+          </QRCodeContainer>
+        ) : (
+          <>
+            <InfoRow>
+              <InfoLabel>IP ADDRESS</InfoLabel>
+              <InfoValue>{localIPs.join(', ')}</InfoValue>
+            </InfoRow>
+
+            <InfoRow>
+              <InfoLabel>PIN</InfoLabel>
+              <InfoValue><PinDisplay serverRunning={serverRunning} /></InfoValue>
+            </InfoRow>
+
+            <InfoRow>
+              <InfoLabel>Port</InfoLabel>
+              <InfoValue>{SERVER_PORT}</InfoValue>
+            </InfoRow>
+          </>
+        )}
 
         <BackToAutoButton>
-          Go back to automatic connection
+          {isQRMode
+            ? "Having trouble with the QR code?"
+            : "Go back to automatic connection"
+          }
         </BackToAutoButton>
         
-        <QRCodeButton>
-          SEE QR CODE
+        <QRCodeButton onClick={toggleQRCode}>
+          {isQRMode ? 'CONNECT MANUALLY' : 'SEE QR CODE'}
         </QRCodeButton>
       </DeviceInfoCard>
 
@@ -140,4 +209,17 @@ const AutoMoveText = styled.p`
   font-size: 0.875rem;
   color: #6c757d;
   font-style: italic;
+`;
+
+const QRCodeContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+`;
+
+const QRCodeImage = styled.img`
+  max-width: 150px;
+  width: 100%;
+  height: auto;
 `;
