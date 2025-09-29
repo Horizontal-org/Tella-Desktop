@@ -1,6 +1,6 @@
 # Tella Desktop
 
-A desktop version of the Tella app made to share files offline via Nearby Sharing. This application enables secure, encrypted file transfers between devices without relying on external servers, prioritizing privacy and security for sensitive data exchange. It uses this communication protocol: [https://github.com/Horizontal-org/](https://github.com/Horizontal-org/Tella-P2P-Protocol)
+A desktop version of the Tella app made to share files offline via Nearby Sharing. This application enables secure, encrypted file transfers between devices without relying on external servers, prioritizing privacy and security for sensitive data exchange. 
 
 ## Platform and availability
 Nearby Sharing will be available for Tella Android, Tella iOS and Tella Desktop, but it's still under development.
@@ -76,7 +76,7 @@ CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC="zig cc -target x86_64-windows" CXX="
 
 ## Protocol Support
 
-The application implements the Tella P2P protocol with the following endpoints:
+The application implements the [Tella Nearby Sharing protocol](https://github.com/Horizontal-org/Tella-P2P-Protocol) with the following endpoints:
 
 - Default Port: 53317 (user configurable if unavailable)
 - `POST /api/v1/ping` - Initial handshake for manual connections
