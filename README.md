@@ -1,6 +1,17 @@
 # Tella Desktop
 
-A desktop version of the Tella app made to share files offline via p2p. This application enables secure, encrypted file transfers between devices without relying on external servers, prioritizing privacy and security for sensitive data exchange.
+A desktop version of the Tella app made to share files offline via Nearby Sharing. This application enables secure, encrypted file transfers between devices without relying on external servers, prioritizing privacy and security for sensitive data exchange. It uses this communication protocol: [https://github.com/Horizontal-org/](https://github.com/Horizontal-org/Tella-P2P-Protocol)
+
+## Platform and availability
+Nearby Sharing will be available for Tella Android, Tella iOS and Tella Desktop, but it's still under development.
+
+The feature is still in alpha, and it's currently being audited by an independent security firm. It will be launched to production only after the priority security fixes are implemented.
+
+User facing documentation: 
+- about the Nearby Sharing in general: https://beta.tella-app.org/nearby-sharing
+- about Tella Desktop: https://beta.tella-app.org/get-started-desktop/
+
+
 
 ## Prerequisites
 
