@@ -2,60 +2,33 @@ import styled, { keyframes } from 'styled-components';
 import wifiIcon from "../../assets/images/icons/wifi-icon.svg";
 
 interface IntroStepProps {
-  wifiNetwork: string;
-  isLoadingWifi: boolean;
-  isWifiConfirmed: boolean;
-  onWifiConfirmChange: (confirmed: boolean) => void;
-  isStartingServer: boolean;
   onContinue: () => void;
 }
-
+// NOTE cblgh(2026-03-03): needs warning/pop up to transmit error if can't start server (e.g. if port is occupied)
 export function IntroStep({ 
-  wifiNetwork,
-  isLoadingWifi,
-  isWifiConfirmed, 
-  isStartingServer,
-  onWifiConfirmChange, 
   onContinue 
 }: IntroStepProps) {
   return (
     <StepContent>
-      <StepTitle>Make sure both devices are connected to the same Wi-Fi network.</StepTitle>
-      <StepSubtitle>Your Wi-Fi network does not need to be connected to the internet.</StepSubtitle>
+      <StepTitle>Share files with nearby devices without needing an Internet connection.</StepTitle>
       
-      <NetworkCard>
-        <NetworkTitleContainer>
+      <IntroCard>
+        <TitleContainer>
           <WifiIcon />
-          <NetworkLabel>Your current Wi-Fi network</NetworkLabel>
-        </NetworkTitleContainer>
-        <NetworkName>
-              { isLoadingWifi ? (
-              <LoadingContainer>
-                <Spinner />
-                <LoadingText>Detecting network...</LoadingText>
-              </LoadingContainer> 
-              ): (<span>{wifiNetwork}</span>)}
-        </NetworkName>
-
-        <CheckboxContainer>
-          <Checkbox 
-            type="checkbox" 
-            checked={isWifiConfirmed}
-            onChange={(e) => onWifiConfirmChange(e.target.checked)}
-          />
-          <CheckboxLabel>Yes, we are on the same Wi-Fi network</CheckboxLabel>
-        </CheckboxContainer>
+          <TitleText>Nearby Sharing</TitleText>
+        </TitleContainer>
+        <DescriptionContainer>
+            <StepDescription>Both devices must be connected to the same Wi-Fi network, using local Wi-Fi or setting up a Hotspot connection.</StepDescription>
+        </DescriptionContainer>
 
        <ButtonContainer>
          <ContinueButton 
           onClick={onContinue}
-          disabled={!isWifiConfirmed || isStartingServer}
-          $isActive={isWifiConfirmed && !isStartingServer}
         >
-          CONTINUE
+          GET STARTED
         </ContinueButton>
        </ButtonContainer>
-      </NetworkCard>
+      </IntroCard>
     </StepContent>
   );
 }
@@ -73,9 +46,9 @@ const StepContent = styled.div`
 `;
 
 const StepTitle = styled.h2`
-  font-size: 1.2rem;
+  font-size: 1rem;
   font-weight: 600;
-  color: #212529;
+  color: #5F6368;
   margin-bottom: 1rem;
 `;
 
@@ -85,18 +58,23 @@ const StepSubtitle = styled.p`
   margin-bottom: 2rem;
 `;
 
-const NetworkCard = styled.div`
+const StepDescription = styled.p`
+  color: ##5F6368;
+`
+
+const IntroCard = styled.div`
   border: 1px solid #CFCFCF;
   border-radius: 8px;
 `;
 
-const NetworkLabel = styled.div`
+const TitleText = styled.div`
   font-size: 0.875rem;
+  font-weight: 700;
   color: #6c757d;
   padding: 1rem;
 `;
 
-const NetworkTitleContainer = styled.div`
+const TitleContainer = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -104,6 +82,8 @@ const NetworkTitleContainer = styled.div`
   padding: 0.8rem;
 `;
 
+
+// TODO cblgh(2026-03-03): swap out icon for nearby-sharing p2p-phones icon
 const WifiIcon = styled.div`
   width: 1.5rem;
   height: 1.5rem;
@@ -114,10 +94,9 @@ const WifiIcon = styled.div`
   background-position: center;
 `;
 
-const NetworkName = styled.div`
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: #212529;
+const DescriptionContainer = styled.div`
+  font-size: 0.75rem;
+  font-weight: 400;
   padding: 2rem;
 `;
 
@@ -147,7 +126,7 @@ const ButtonContainer = styled.div`
   padding: 1rem;
 `;
 
-const ContinueButton = styled.button<{ $isActive: boolean }>`
+const ContinueButton = styled.button`
   background-color: #ffffff;
   color: #8B8E8F;
   border: 1px solid #CFCFCF;
@@ -155,9 +134,9 @@ const ContinueButton = styled.button<{ $isActive: boolean }>`
   padding: 0.75rem 5rem;
   font-size: 12px;
   font-weight: 700;
-  cursor: ${({ $isActive }) => $isActive ? 'pointer' : 'not-allowed'};
+  cursor: pointer;
   transition: background-color 0.2s;
-  opacity: ${({ $isActive }) => $isActive ? '100%' : '36%'}
+  opacity: 100%;
 `;
 
 const LoadingContainer = styled.div`

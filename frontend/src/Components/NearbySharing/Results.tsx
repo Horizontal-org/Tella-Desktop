@@ -28,6 +28,9 @@ interface ResultsStepProps {
 // buttons: [<icon> try again]
 //
 
+
+// NOTE cblgh (2026-03-03): the step subtitle currently deviates from the designs. a transfer interrupted screen needs
+// to be implemented, and then we can remove the "x out of y received" text.
 export function ResultsStep({ transferredFiles, totalFiles, folderTitle, onViewFiles }: ResultsStepProps) {
   return (
     <DeviceInfoCard>
@@ -35,9 +38,12 @@ export function ResultsStep({ transferredFiles, totalFiles, folderTitle, onViewF
         <CheckIcon>✓</CheckIcon>
       </ResultHeaderContainer>
       <ResultContent>
-        <StepTitle>Success!</StepTitle>
+        <StepTitle>Success</StepTitle>
         <StepSubtitle>
-          {transferredFiles} out of {totalFiles} files were successfully received and saved to the folder {sanitizeUGC(folderTitle || "Folder")}
+          You have successfully received {transferredFiles} out of {totalFiles} from the sender.
+        </StepSubtitle>
+        <StepSubtitle>
+          Received files are in the folder "{sanitizeUGC(folderTitle || "Folder")}"
         </StepSubtitle>
       </ResultContent>
       <ButtonContainer>

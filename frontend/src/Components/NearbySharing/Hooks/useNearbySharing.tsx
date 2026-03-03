@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from 'react-router-dom';
-import { GetLocalIPs, RejectRegistration, ConfirmRegistration, GetWiFiNetworkName, StopTransfer } from "../../../../wailsjs/go/app/App";
+import { GetLocalIPs, RejectRegistration, ConfirmRegistration, StopTransfer } from "../../../../wailsjs/go/app/App";
 import { EventsOn } from "../../../../wailsjs/runtime/runtime";
 import { useServer } from "../../../Contexts/ServerContext";
 
@@ -31,10 +31,7 @@ export function useNearbySharing() {
   const [currentStep, setCurrentStep] = useState<FlowStep>('intro');
   
   // Network state
-  const [wifiNetwork, setWifiNetwork] = useState<string>('');
-  const [isWifiConfirmed, setIsWifiConfirmed] = useState(false);
   const [localIPs, setLocalIPs] = useState<string[]>([]);
-  const [isLoadingWifi, setIsLoadingWifi] = useState<boolean>(false);
   
   // Transfer state
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
@@ -55,16 +52,6 @@ export function useNearbySharing() {
       try {
         const ips = await GetLocalIPs();
         setLocalIPs(ips);
-        setIsLoadingWifi(true);
-
-        try {
-          const wifiName = await GetWiFiNetworkName();
-          setWifiNetwork(wifiName);
-        } catch (wifiErr) {
-          console.error('Failed to get WiFi network name:', wifiErr);
-        } finally {
-          setIsLoadingWifi(false);
-        }
       } catch (error) {
         console.error('Failed to get network info:', error);
       }
@@ -186,7 +173,7 @@ export function useNearbySharing() {
   };
 
   const handleContinue = async () => {
-    if (currentStep === 'intro' && isWifiConfirmed) {
+    if (currentStep === 'intro') {
       await handleStartServer();
     }
   };
@@ -245,7 +232,6 @@ export function useNearbySharing() {
   const resetState = () => {
     setCurrentSessionId('');
     setTransferData(null);
-    setIsWifiConfirmed(false);
     setShowVerificationModal(false);
     setCertificateHash('');
     setModalState('waiting');
@@ -259,9 +245,6 @@ export function useNearbySharing() {
     currentStep,
     serverRunning,
     isStartingServer,
-    wifiNetwork,
-    isLoadingWifi,
-    isWifiConfirmed,
     localIPs,
     currentSessionId,
     transferData,
@@ -271,7 +254,6 @@ export function useNearbySharing() {
     isUsingQRMode,
     
     // State setters
-    setIsWifiConfirmed,
 
     // QR mode handler
     handleQRModeChange: (isQR: boolean) => {

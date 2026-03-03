@@ -93,13 +93,13 @@ export function FileRequest({ onAccept, onReject, onReceiving }: FileRequestProp
       <StepContent>
         <TitleContainer>
           <ClockIcon /> 
-          <StepTitle>Waiting for the sender to send files</StepTitle>
+          <StepTitle>Waiting for the sender to share files</StepTitle>
         </TitleContainer>
         <LoadingContainer>
           <LoadingSpinner />
         </LoadingContainer>
         <StepSubtitle>
-          This screen will automatically update when you've received a request to send files.
+          This screen will automatically update when you've received a request to share files.
         </StepSubtitle>
       </StepContent>
     );

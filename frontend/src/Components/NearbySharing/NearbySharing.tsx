@@ -12,9 +12,6 @@ export function NearbySharing() {
   const {
     currentStep,
     serverRunning,
-    isStartingServer,
-    wifiNetwork,
-    isWifiConfirmed,
     localIPs,
     currentSessionId,
     transferData,
@@ -23,9 +20,7 @@ export function NearbySharing() {
     modalState,
     isUsingQRMode,
 
-    setIsWifiConfirmed,
     handleQRModeChange,
-    isLoadingWifi,
     
     handleContinue,
     handleVerificationConfirm,
@@ -51,11 +46,6 @@ export function NearbySharing() {
       <MainContent>
         {currentStep === 'intro' && (
           <IntroStep 
-            wifiNetwork={wifiNetwork}
-            isLoadingWifi={isLoadingWifi} 
-            isWifiConfirmed={isWifiConfirmed} 
-            onWifiConfirmChange={setIsWifiConfirmed} 
-            isStartingServer={isStartingServer}
             onContinue={handleContinue} 
           />
         )}

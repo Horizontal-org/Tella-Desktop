@@ -43,6 +43,8 @@ export function FileReceiving({ sessionId,
   const [failedFiles, setFailedFiles] = useState<FileReceivingData[]>([]);
   const [receivedSize, setReceivedSize] = useState(0);
 
+  // TODO: cblgh(2026-02-20): these effects need to be improved because they are somehow being registered twice without
+  // proper deregistration due to the debug behaviour of react (during dev, react runs all effects twice)
   // Initialize receiving files from props
   useEffect(() => {
     const initialFiles = files.map(file => ({
@@ -61,6 +63,12 @@ export function FileReceiving({ sessionId,
     });
   }, [sessionId, files]);
 
+  // TODO: cblgh(2026-02-20): these effects need to be improved because they are somehow being registered twice without
+  // proper deregistration due to the debug behaviour of react (during dev, react runs all effects twice). this
+  // incorrectly causes the progress indicator to show double the amount of files processed (so 8 instead of 4, when 4
+  // files have been received) and double the amount of data transferred.
+  //
+  // i have verified that this problem is not present in release builds
   useEffect(() => {
     console.log("Setting up FileReceiving event listeners for sessionId:", sessionId);
 
