@@ -83,7 +83,6 @@ const TitleContainer = styled.div`
 `;
 
 
-// TODO cblgh(2026-03-03): swap out icon for nearby-sharing p2p-phones icon
 const P2PIcon = styled.div`
   width: 1.5rem;
   height: 1.5rem;

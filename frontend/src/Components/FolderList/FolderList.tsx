@@ -25,9 +25,11 @@ import {
   FilesHeader,
   DateHeader,
   FolderIcon,
+  FoldersIcon,
   FolderName,
   Checkbox,
   NoItemsMessage,
+  NoItemsContainer,
 } from '../../styles/TableStyles';
 import { Dialog } from '../Dialog/Dialog';
 import { LoadingDialog } from '../Dialog/LoadingDialog';
@@ -248,9 +250,12 @@ export function FolderList() {
   if (!folders || folders.length === 0) {
     return (
       <Container>
-        <NoItemsMessage>
-          This is where the files you receive will be displayed. Click on “Nearby Sharing” to get started.
-        </NoItemsMessage>
+          <NoItemsContainer>
+            <FoldersIcon/>
+            <NoItemsMessage>
+              This is where the files you receive will be displayed. Click on “Nearby Sharing” to get started.
+            </NoItemsMessage>
+          </NoItemsContainer>
       </Container>
     );
   }
