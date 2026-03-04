@@ -1,5 +1,5 @@
 import styled, { keyframes } from 'styled-components';
-import wifiIcon from "../../assets/images/icons/wifi-icon.svg";
+import p2pIcon from "../../assets/images/icons/p2p.svg";
 
 interface IntroStepProps {
   onContinue: () => void;
@@ -14,7 +14,7 @@ export function IntroStep({
       
       <IntroCard>
         <TitleContainer>
-          <WifiIcon />
+          <P2PIcon />
           <TitleText>Nearby Sharing</TitleText>
         </TitleContainer>
         <DescriptionContainer>
@@ -84,11 +84,11 @@ const TitleContainer = styled.div`
 
 
 // TODO cblgh(2026-03-03): swap out icon for nearby-sharing p2p-phones icon
-const WifiIcon = styled.div`
+const P2PIcon = styled.div`
   width: 1.5rem;
   height: 1.5rem;
   flex-shrink: 0;
-  background-image: url(${wifiIcon});
+  background-image: url(${p2pIcon});
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
@@ -123,7 +123,7 @@ const CheckboxLabel = styled.label`
 const ButtonContainer = styled.div`
   display: flex;
   justify-content: center;
-  padding: 1rem;
+  padding: 0rem 1rem 1rem 1rem; 
 `;
 
 const ContinueButton = styled.button`

@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import { PinDisplay } from "../PinDisplay";
 import { GetServerPIN } from '../../../wailsjs/go/app/App';
 import QRCode from 'qrcode';
+import qrIcon from "../../assets/images/icons/qr.svg";
+import phoneIcon from "../../assets/images/icons/phone.svg";
 
 const SERVER_PORT = 53317;
 
@@ -60,15 +62,23 @@ export function ConnectStep({ serverRunning, localIPs, certificateHash, isQRMode
     <StepContent>
       <StepTitle>
         {isQRMode
-          ? "Show this QR code for the sender to scan"
-          : "The sender needs to input the following information in Tella on their phone"
+          ? "Show this QR code for the sender to scan."
+          : "The sender needs to input the following to connect to your device."
         }
       </StepTitle>
 
       <DeviceInfoCard>
         <DeviceInfoHeader>
           <DeviceInfoTitle>
-            {isQRMode ? "Your QR code" : "Your device information"}
+            {isQRMode ? (
+            <IconTitleContainer>
+                <QRIcon/> <span>Your QR code</span>
+            </IconTitleContainer>
+            ): ( 
+            <IconTitleContainer>
+                <PhoneIcon/> <span>Your device information</span>
+            </IconTitleContainer>
+           )}
           </DeviceInfoTitle>
         </DeviceInfoHeader>
         
@@ -112,7 +122,7 @@ export function ConnectStep({ serverRunning, localIPs, certificateHash, isQRMode
       </DeviceInfoCard>
 
       <AutoMoveText>
-        You will automatically move to the next screen as soon as the connection with the sender is established.
+        You will automatically move to the next screen as soon as the connection with the sender is established
       </AutoMoveText>
     </StepContent>
   );
@@ -223,4 +233,31 @@ const QRCodeImage = styled.img`
   max-width: 150px;
   width: 100%;
   height: auto;
+`;
+
+const QRIcon = styled.div`
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  background-image: url(${qrIcon});
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+`;
+
+const IconTitleContainer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  column-gap: 1rem;
+`
+
+const PhoneIcon = styled.div`
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  background-image: url(${phoneIcon});
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
 `;
