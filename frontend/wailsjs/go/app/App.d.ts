@@ -17,6 +17,8 @@ export function ExportFiles(arg1:Array<number>):Promise<Array<string>>;
 
 export function ExportZipFolders(arg1:Array<number>,arg2:Array<number>):Promise<Array<string>>;
 
+export function GetDefaultPort():Promise<number>;
+
 export function GetFilesInFolder(arg1:number):Promise<filestore.FilesInFolderResponse>;
 
 export function GetLocalIPs():Promise<Array<string>>;

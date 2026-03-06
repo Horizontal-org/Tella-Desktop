@@ -1,12 +1,10 @@
 import styled from 'styled-components';
 import { useState, useEffect } from 'react';
 import { PinDisplay } from "../PinDisplay";
-import { GetServerPIN } from '../../../wailsjs/go/app/App';
+import { GetServerPIN, GetDefaultPort } from '../../../wailsjs/go/app/App';
 import QRCode from 'qrcode';
 import qrIcon from "../../assets/images/icons/qr.svg";
 import phoneIcon from "../../assets/images/icons/phone.svg";
-
-const SERVER_PORT = 53317;
 
 interface ConnectStepProps {
   serverRunning: boolean;
@@ -19,14 +17,18 @@ interface ConnectStepProps {
 export function ConnectStep({ serverRunning, localIPs, certificateHash, isQRMode, onModeChange }: ConnectStepProps) {
   const [qrCodeDataURL, setQrCodeDataURL] = useState('');
   const [pin, setPin] = useState('');
+  const [serverPort, setServerPort] = useState(-1);
 
   useEffect(() => {
     const generateQR = async () => {
+      const defaultPort = await GetDefaultPort();
+      setServerPort(defaultPort);
+
       if (serverRunning && localIPs.length > 0 && certificateHash && pin) {
         try {
           const qrData = {
             ip_address: localIPs[0],
-            port: SERVER_PORT,
+            port: defaultPort,
             certificate_hash: certificateHash,
             pin: pin
           };
@@ -104,7 +106,7 @@ export function ConnectStep({ serverRunning, localIPs, certificateHash, isQRMode
 
             <InfoRow>
               <InfoLabel>Port</InfoLabel>
-              <InfoValue>{SERVER_PORT}</InfoValue>
+              <InfoValue>{serverPort}</InfoValue>
             </InfoRow>
           </>
         )}

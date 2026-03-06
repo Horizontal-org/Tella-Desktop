@@ -30,6 +30,10 @@ export function ExportZipFolders(arg1, arg2) {
   return window['go']['app']['App']['ExportZipFolders'](arg1, arg2);
 }
 
+export function GetDefaultPort() {
+  return window['go']['app']['App']['GetDefaultPort']();
+}
+
 export function GetFilesInFolder(arg1) {
   return window['go']['app']['App']['GetFilesInFolder'](arg1);
 }

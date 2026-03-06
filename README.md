@@ -11,8 +11,6 @@ User facing documentation:
 - about the Nearby Sharing in general: https://beta.tella-app.org/nearby-sharing
 - about Tella Desktop: https://beta.tella-app.org/get-started-desktop/
 
-
-
 ## Prerequisites
 
 - Go 1.24 or later
@@ -103,11 +101,35 @@ The Windows executable will be saved as `tella.exe`.
 CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC="zig cc -target x86_64-windows" CXX="zig cc -target x86_64-windows" go build -tags desktop,production -ldflags "-w -s -H windowsgui" -o tella.exe
 ```
 
+## Configuration
+
+A basic configuration file exists called `desktop-settings.toml`. It currently controls the
+following settings:
+
+```toml
+# the maximum allowed file size to be sent. currently 3GB
+maxFileSizeBytes = 3000000000
+# maximum amount of files allowed to be sent in a single transfer session
+maxFileCount = 1000
+# the default port used 
+defaultPort = 53317
+``` 
+
+The config file can be found at:
+
+* Linux: `~/.config/desktop-settings.toml`
+* Windows: `~\AppData\Local\Tella\desktop-settings.toml`
+* OSX: `~/Library/Application Support/Tella/desktop-settings.toml`
+
+If you need to change the default port, changing this file is how you can accomplish it
+currently. In the future a settings pane will be added for changing settings directly in the
+application.
+
 ## Protocol Support
 
 The application implements the [Tella Nearby Sharing protocol](https://github.com/Horizontal-org/Tella-P2P-Protocol) with the following endpoints:
 
-- Default Port: 53317 (user configurable if unavailable)
+- Default Port: 53317
 - `POST /api/v1/ping` - Initial handshake for manual connections
 - `POST /api/v1/register` - Device registration with PIN authentication
 - `POST /api/v1/prepare-upload` - Prepare file transfer session

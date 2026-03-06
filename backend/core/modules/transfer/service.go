@@ -11,12 +11,14 @@ import (
 
 	"Tella-Desktop/backend/core/modules/filestore"
 	"Tella-Desktop/backend/utils/constants"
+	"Tella-Desktop/backend/utils/config"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type service struct {
+	config					 config.Config
 	ctx              context.Context
 	transfers        sync.Map
 	pendingTransfers sync.Map
@@ -52,7 +54,9 @@ type TransferSession struct {
 const REFRESH_TIMEOUT_MIN = 45   // timeout window allows for transfers between [27GB and 162GB] for speeds [1MB/s, 6MB/s]
 
 func NewService(ctx context.Context, fileSerservice filestore.Service, db *sql.DB, sessionIsValid func(string) bool, forgetSession func(string)) Service {
+	conf := config.ReadConfig()
 	return &service{
+		config: conf,
 		ctx:              ctx,
 		transfers:        sync.Map{},
 		pendingTransfers: sync.Map{},
@@ -78,6 +82,11 @@ func (s *service) PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadRe
 	if exists {
 		return nil, fmt.Errorf("pending transfer already exists for session: %s", request.SessionID)
 	}
+
+
+	// TODO: cblgh/(2026-03-06):
+	// check that config.MaxFileCount is not exceeded in prepare-upload data
+	// check that config.MaxFileFileSizeBytes is not exceeded for any file in prepare-upload data
 
 	// correctly checks that the sessionID from the registration is the same as the sessionID arriving in our prepare-upload request
 	if !s.sessionIsValid(request.SessionID) {
@@ -308,6 +317,11 @@ func (s *service) HandleUpload(sessionID, transmissionID, fileID string, reader 
 	// acknowledgement ({ success: true }) until the file has been properly stored and encrypted -- which can take quite a
 	// bit of time for large files. this forces the sender to keep the application open while nothing useful is happening
 	// on their side
+
+	// TODO: cblgh/(2026-03-06):
+	// check that config.MaxFileCount is not exceeded
+	// check that config.MaxFileFileSizeBytes is not exceeded for any file by wrapping reader in e.g. a LimitReader or
+	// MaxBytesReader
 
 	// NOTE cblgh(2026-02-19): LimitReader returns an EOF, which signals the end of reading activities for io.ReadAll or
 	// io.Copy. this means that we will only read exactly as many bytes as the sender has told us this file size is! if

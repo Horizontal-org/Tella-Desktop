@@ -12,6 +12,7 @@ import (
 	"Tella-Desktop/backend/core/modules/server"
 	"Tella-Desktop/backend/core/modules/transfer"
 	"Tella-Desktop/backend/utils/authutils"
+	"Tella-Desktop/backend/utils/config"
 	"Tella-Desktop/backend/utils/network"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -49,6 +50,11 @@ func (a *App) CreatePassword(password string) error {
 
 	runtime.LogInfo(a.ctx, "Database created and encrypted successfully")
 	return nil
+}
+
+func (a *App) GetDefaultPort() int {
+	conf := config.ReadConfig()
+	return conf.Port
 }
 
 func (a *App) VerifyPassword(password string) error {
