@@ -46,6 +46,35 @@ wails dev -tags webkit2_41
 
 This will start both the backend server and frontend development server with hot reload.
 
+## Folder hierarchy
+
+Frontend files (React) can be found at [`frontend/src/`](frontend/src). The vast majority of
+all the React code resides in [`frontend/src/Components`](frontend/src/Components). 
+
+Backend files reside in [`backend`](backend) split across folders [`app`](backend/app),
+[`core`](backend/core), and [`utils`](backend/utils/).
+
+* `app`: Logic to bootstrap the application. Also declares public methods on the backend which can be
+  called by the frontend.
+* `core`: Holds majority of the code - all logic, database operations, http handlers and routes, and any other server-side handling.
+* `utils`: Various utilities dealing with auth, file storage, network, and TLS.
+
+The backend is divided logically across different "services" for the following domains:
+
+* **Database**: everything related to the database
+* **Authentication**: deals with user authentication and local encryption
+* **Registration**: handles setting up a new transfer session
+* **Transfer**: takes care of an ongoing transfer session
+* **Server**: the HTTPS server
+* **File storage**: bundles together all file storage and file manipulation functions
+
+Each service package has the following structure:
+
+* `handler.go`: sets up any HTTP handlers if needed / instantiates the service.
+* `ports.go`: declare the public interface of the server.
+* `service.go`: the concrete implementation of the specific service.
+* `models.go`: declares struct types.
+
 ## Building
 
 To build a production version:
