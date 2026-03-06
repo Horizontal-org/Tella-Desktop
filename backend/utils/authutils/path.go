@@ -7,10 +7,12 @@ import (
 
 // Directory constants
 const (
+	// TODO cblgh(2026-03-06): obfuscate `TellaAppName`?
 	TellaAppName = "Tella"
 	TVaultFile   = ".tvault"
 	TellaDBFile  = ".tella.db"
 	TempDir      = "temp"
+	ConfigFilename = "desktop-settings.toml"
 )
 
 // Create wrappers around XDG functions that we can mock in tests
@@ -24,6 +26,14 @@ var xdgCacheFile = func(relPath string) (string, error) {
 
 var xdgConfigFile = func(relPath string) (string, error) {
 	return xdg.ConfigFile(relPath)
+}
+
+func GetConfigFilePath() string {
+	p, err := xdgConfigFile(ConfigFilename)
+	if err != nil {
+		return ""
+	}
+	return p
 }
 
 // TODO cblgh(2026-02-12): remove all "local directory" fallbacks to limit spreading data exposure across multiple directories?
@@ -55,9 +65,6 @@ func GetTempDir() string {
 	return tdir
 }
 
-// TODO cblgh(2026-02-12): audit suggests using a different 'export directory design'. move away from the previous
-// decision to use Download
 func GetExportDir() string {
-	downloadDir := xdg.UserDirs.Download
-	return filepath.Join(downloadDir, TellaAppName)
+	return filepath.Join(xdg.UserDirs.Documents, "Exports")
 }
