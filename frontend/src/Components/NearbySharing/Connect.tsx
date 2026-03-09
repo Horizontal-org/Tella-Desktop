@@ -27,7 +27,7 @@ export function ConnectStep({ serverRunning, localIPs, certificateHash, isQRMode
       if (serverRunning && localIPs.length > 0 && certificateHash && pin) {
         try {
           const qrData = {
-            ip_address: localIPs[0],
+            ip_address: localIPs,
             port: defaultPort,
             certificate_hash: certificateHash,
             pin: pin
