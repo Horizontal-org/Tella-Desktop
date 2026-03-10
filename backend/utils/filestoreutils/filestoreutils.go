@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/gabriel-vasile/mimetype"
 )
 
 // insertFileMetadata adds file metadata to the database
@@ -104,113 +106,36 @@ func CreateUniqueFilename(dir, fileName string) string {
 
 // GetFileExtensionFromMimeType returns the appropriate file extension for a given mimetype
 func GetFileExtensionFromMimeType(mimeType string) string {
-	// Common image formats
-	switch mimeType {
-	case "image/jpeg", "image/jpg":
-		return ".jpg"
-	case "image/png":
-		return ".png"
-	case "image/gif":
-		return ".gif"
-	case "image/webp":
-		return ".webp"
-	case "image/tiff":
-		return ".tiff"
-	case "image/bmp":
-		return ".bmp"
-	case "image/heic":
-		return ".heic"
-	case "image/heif":
-		return ".heif"
+	lookup := mimetype.Lookup(mimeType)
 
-	// Video formats
-	case "video/mp4":
-		return ".mp4"
-	case "video/avi":
-		return ".avi"
-	case "video/mov", "video/quicktime":
-		return ".mov"
-	case "video/wmv":
-		return ".wmv"
-	case "video/flv":
-		return ".flv"
-	case "video/webm":
-		return ".webm"
-	case "video/3gpp":
-		return ".3gp"
-
-	// Audio formats
-	case "audio/mpeg", "audio/mp3":
-		return ".mp3"
-	case "audio/wav":
-		return ".wav"
-	case "audio/aac":
-		return ".aac"
-	case "audio/ogg":
-		return ".ogg"
-	case "audio/flac":
-		return ".flac"
-	case "audio/m4a":
-		return ".m4a"
-
-	// Document formats
-	case "application/pdf":
-		return ".pdf"
-	case "application/msword":
-		return ".doc"
-	case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-		return ".docx"
-	case "application/vnd.ms-excel":
-		return ".xls"
-	case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-		return ".xlsx"
-	case "application/vnd.ms-powerpoint":
-		return ".ppt"
-	case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-		return ".pptx"
-	case "text/plain":
-		return ".txt"
-	case "text/html":
-		return ".html"
-	case "text/css":
-		return ".css"
-	case "application/javascript", "text/javascript":
-		return ".js"
-	case "application/json":
-		return ".json"
-	case "application/xml", "text/xml":
-		return ".xml"
-
-	// Archive formats
-	case "application/zip":
-		return ".zip"
-	case "application/x-rar-compressed":
-		return ".rar"
-	case "application/x-tar":
-		return ".tar"
-	case "application/gzip":
-		return ".gz"
-
-	// Default case: try to extract from mimetype
-	default:
-		prefixes := []string{"image/", "video/", "audio/", "text/"}
-		for _, prefix := range prefixes {
-			extractedType, success := strings.CutPrefix(mimeType, prefix)
-			if success {
-				return "." + extractedType
-			}
-		}
-		return ".file"
+	// our library knows about the given mimetype, return the associated extension
+	if lookup != nil {
+		return lookup.Extension()
 	}
+
+	// if our library doesn't have any record of this mimetype, try to extract something useful from the mimeType. 
+	// worst case, if mime type is not anything intelligible,  default to returning just `.file` as extension
+	prefixes := []string{"image/", "video/", "audio/", "text/"}
+	for _, prefix := range prefixes {
+		extractedType, success := strings.CutPrefix(mimeType, prefix)
+		if success {
+			return "." + extractedType
+		}
+	}
+	return ".file"
 }
 
 // EnsureFileExtension ensures a filename has the correct extension based on its mimetype
-func EnsureFileExtension(fileName, mimeType string) string {
+func EnsureFileExtension(fileName, inferredMIMEType, metadataMimeType string) string {
 	// Check if the filename already has an extension
 	if filepath.Ext(fileName) != "" {
 		return fileName // Already has an extension, keep it
 	}
 
+	mimeType := metadataMimeType
+	if inferredMIMEType != "" {
+		mimeType = inferredMIMEType
+	}
 	// No extension found, add one based on mimetype
 	extension := GetFileExtensionFromMimeType(mimeType)
 	return fileName + extension
@@ -329,18 +254,17 @@ func GetSelectedFilesInFolder(db *sql.DB, folderID int64, fileIDs []int64) ([]Fi
 	return files, nil
 }
 
-// ExportSingleFile exports a single file to the specified directory
-func ExportSingleFile(db *sql.DB, dbKey []byte, id int64, tvault *os.File, exportDir string) (string, error) {
-	metadata, err := GetFileMetadataByID(db, id)
+func decryptAndGetFilename(db *sql.DB, fid int64, dbKey []byte, tvault *os.File) ([]byte, string, error) {
+	metadata, err := GetFileMetadataByID(db, fid)
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
 
 	// Read encrypted data from TVault
 	encryptedData := make([]byte, metadata.Length)
 	_, err = tvault.ReadAt(encryptedData, metadata.Offset)
 	if err != nil {
-		return "", fmt.Errorf("failed to read file from TVault: %w", err)
+		return nil, "", fmt.Errorf("failed to read file from TVault: %w", err)
 	}
 	defer util.SecureZeroMemory(encryptedData)
 
@@ -348,12 +272,26 @@ func ExportSingleFile(db *sql.DB, dbKey []byte, id int64, tvault *os.File, expor
 	fileKey := GenerateFileKey(metadata.UUID, dbKey)
 	decryptedData, err := authutils.DecryptData(encryptedData, fileKey)
 	if err != nil {
-		return "", fmt.Errorf("failed to decrypt file: %w", err)
+		return nil, "", fmt.Errorf("failed to decrypt file: %w", err)
+	}
+
+	inferredMIME := mimetype.Detect(decryptedData)
+	var detectedMIME string
+	if !inferredMIME.Is("application/octet-stream") {
+		detectedMIME = inferredMIME.String()
+	}
+	// Ensure filename has proper extension based on mimetype
+	fileName := EnsureFileExtension(metadata.Name, detectedMIME,  metadata.MimeType)
+	return decryptedData, fileName, nil
+}
+
+// ExportSingleFile exports a single file to the specified directory
+func ExportSingleFile(db *sql.DB, dbKey []byte, id int64, tvault *os.File, exportDir string) (string, error) {
+	decryptedData, fileName, err := decryptAndGetFilename(db, id, dbKey, tvault)
+	if err != nil {
+		return "", err
 	}
 	defer util.SecureZeroMemory(decryptedData)
-
-	// Ensure filename has proper extension based on mimetype
-	fileName := EnsureFileExtension(metadata.Name, metadata.MimeType)
 
 	// Create unique filename in export directory
 	exportPath := CreateUniqueFilename(exportDir, fileName)
@@ -416,32 +354,13 @@ func CreateZipFile(db *sql.DB, dbKey []byte, folderName string, files []FileInfo
 
 // AddFileToZip adds a single file to an existing ZIP writer
 func AddFileToZip(db *sql.DB, dbKey []byte, zipWriter *zip.Writer, file FileInfo, tvault *os.File) error {
-	// Get file metadata for decryption
-	metadata, err := GetFileMetadataByID(db, file.ID)
+	decryptedData, fileName, err := decryptAndGetFilename(db, file.ID, dbKey, tvault)
 	if err != nil {
-		return fmt.Errorf("failed to get metadata for file %d: %w", file.ID, err)
-	}
-
-	// Read and decrypt file
-	encryptedData := make([]byte, metadata.Length)
-	_, err = tvault.ReadAt(encryptedData, metadata.Offset)
-	if err != nil {
-		return fmt.Errorf("failed to read encrypted data: %w", err)
-	}
-	defer util.SecureZeroMemory(encryptedData)
-
-	fileKey := GenerateFileKey(metadata.UUID, dbKey)
-	decryptedData, err := authutils.DecryptData(encryptedData, fileKey)
-	if err != nil {
-		return fmt.Errorf("failed to decrypt file: %w", err)
+		return err
 	}
 	defer util.SecureZeroMemory(decryptedData)
 
-	// Ensure filename has proper extension for ZIP entry
-	fileName := EnsureFileExtension(file.Name, file.MimeType)
-
 	// Create file in ZIP
-	// TODO: cblgh(2026-02-12): fileWriter is an io.Writer -- Close should be called.
 	fileWriter, err := zipWriter.Create(fileName)
 	if err != nil {
 		return fmt.Errorf("failed to create file in ZIP: %w", err)
