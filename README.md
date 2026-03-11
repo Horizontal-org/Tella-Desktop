@@ -112,7 +112,7 @@ maxFileSizeBytes = 3000000000
 # maximum amount of files allowed to be sent in a single transfer session
 maxFileCount = 1000
 # the default port used 
-defaultPort = 53317
+defaultPort = 53320
 ``` 
 
 The config file can be found at:
@@ -129,7 +129,7 @@ application.
 
 The application implements the [Tella Nearby Sharing protocol](https://github.com/Horizontal-org/Tella-P2P-Protocol) with the following endpoints:
 
-- Default Port: 53317
+- Default Port: 53320
 - `POST /api/v1/ping` - Initial handshake for manual connections
 - `POST /api/v1/register` - Device registration with PIN authentication
 - `POST /api/v1/prepare-upload` - Prepare file transfer session
