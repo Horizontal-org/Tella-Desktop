@@ -4,7 +4,9 @@ import (
 	"Tella-Desktop/backend/utils/transferutils"
 	"context"
 	"database/sql"
+	"net/http"
 	"fmt"
+	"errors"
 	"io"
 	"sync"
 	"time"
@@ -128,6 +130,10 @@ func (s *service) PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadRe
 		s.pendingTransfers.Delete(request.SessionID)
 		return nil, fmt.Errorf("request timeout - no response from recipient")
 	}
+}
+
+func (s *service) GetMaxFileSizeLimit() int64 {
+	return s.config.MaxFileSizeBytes
 }
 
 func (s *service) AcceptTransfer(sessionID string) error {
@@ -385,6 +391,10 @@ func (s *service) HandleUpload(sessionID, transmissionID, fileID string, reader 
 
 	// if we've failed & determined whether any transfers are still pending, then we can ret with the err
 	if transferFailed {
+		unwrappedErr := errors.Unwrap(err)
+		if _, ok := unwrappedErr.(*http.MaxBytesError); ok {
+			return transferutils.ErrTransferTooLarge 
+		}
 		return fmt.Errorf("failed to store file: %w", err)
 	}
 

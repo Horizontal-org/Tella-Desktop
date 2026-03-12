@@ -11,5 +11,6 @@ type Service interface {
 	PreUploadValidation(sessionID, transmissionID, fileID string) error
 	GetTransfer(fileID string) (*Transfer, error)
 	StopTransfer(sessionID string)
+	GetMaxFileSizeLimit() int64
 	Lock()
 }

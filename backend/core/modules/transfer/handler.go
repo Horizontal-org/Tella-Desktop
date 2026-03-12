@@ -140,12 +140,15 @@ func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("Receiving file: %s (type: %s)\n", fileName, mimeType)
 
+	// limit reading from body to at most config.MaxFileSyzeBites
+	limitedBody := http.MaxBytesReader(w, r.Body, h.service.GetMaxFileSizeLimit())
+
 	// TODO cblgh(2026-02-16): handle situation where transfer has been stopped & HTTPS server should be terminated
 	if err := h.service.HandleUpload(
 		sessionID,
 		transmissionID,
 		fileID,
-		r.Body,
+		limitedBody,
 		fileName,
 		mimeType,
 		h.defaultFolder,
@@ -157,7 +160,9 @@ func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid session", http.StatusUnauthorized)
 		case transferutils.ErrInvalidTransmission:
 			http.Error(w, "Invalid transmission ID", http.StatusUnauthorized)
-		// TODO cblgh(2026-03-12): implement detection of this situation in service in order to return this error 
+		case transferutils.ErrTransferTooLarge:
+			http.Error(w, "Content too large", http.StatusRequestEntityTooLarge)
+		// TODO cblgh(2026-03-12): implement detection of hdd space running out in FileService in order to return this error 
 		case transferutils.ErrTransferInsufficentSpace:
 			http.Error(w, "Insufficient storage space", http.StatusInsufficientStorage)
 		case transferutils.ErrTransferComplete:
