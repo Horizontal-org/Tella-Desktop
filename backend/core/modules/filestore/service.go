@@ -11,6 +11,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
 )
 
@@ -31,7 +32,7 @@ func NewService(ctx context.Context, db *sql.DB, dbKey []byte) Service {
 }
 
 // StoreFile encrypts and stores a file in TVault
-func (s *service) StoreFile(folderID, claimedSize int64, fileName string, mimeType string, reader io.Reader) (*FileMetadata, error) {
+func (s *service) StoreFile(folderID, claimedSize int64, fileName string, claimedMimeType string, reader io.Reader) (*FileMetadata, error) {
 	// Begin Transaction
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -53,6 +54,11 @@ func (s *service) StoreFile(folderID, claimedSize int64, fileName string, mimeTy
 	fmt.Println("filestore err?", fileName, err)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file data: %w", err)
+	}
+
+	inferredMIME := mimetype.Detect(fileData)
+	if inferredMIME != nil && !inferredMIME.Is("application/octet-stream") &&  !inferredMIME.Is(claimedMimeType) {
+		fmt.Println("MISMATCH DETECTED: claimed mimetype does not match mimetype based on file data")
 	}
 
 	originalSize := int64(len(fileData))
@@ -94,7 +100,7 @@ func (s *service) StoreFile(folderID, claimedSize int64, fileName string, mimeTy
 	}
 
 	// Insert file metadata into database
-	fileID, err := filestoreutils.InsertFileMetadata(tx, fileUUID, fileName, originalSize, mimeType, folderID, offset, encryptedSize)
+	fileID, err := filestoreutils.InsertFileMetadata(tx, fileUUID, fileName, originalSize, claimedMimeType, folderID, offset, encryptedSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert file metadata: %w", err)
 	}
@@ -110,7 +116,7 @@ func (s *service) StoreFile(folderID, claimedSize int64, fileName string, mimeTy
 		UUID:      fileUUID,
 		Name:      fileName,
 		Size:      originalSize,
-		MimeType:  mimeType,
+		MimeType:  claimedMimeType,
 		FolderID:  folderID,
 		Offset:    offset,
 		Length:    encryptedSize,
