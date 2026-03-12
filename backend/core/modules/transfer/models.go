@@ -20,6 +20,7 @@ type FileInfo struct {
 type PrepareUploadRequest struct {
 	Title     string     `json:"title"`
 	SessionID string     `json:"sessionId"`
+	Nonce     string     `json:"nonce"`
 	Files     []FileInfo `json:"files"`
 }
 
@@ -50,5 +51,14 @@ func (r *PrepareUploadRequest) Validate() error {
 	if len(r.Files) == 0 {
 		return errors.New("at least one file is required")
 	}
+	// TODO cblgh(2026-03-09): improve validation logic
+	// go through each file and make sure it has fields
+	//
+	// "id": "file-uuid",
+	// "fileName": "",
+	// "size": number,
+	// "sha256": "",
+	// "fileType": "application/pdf",
+	// "thumbnail": "thumbnail-data" (optional?)
 	return nil
 }

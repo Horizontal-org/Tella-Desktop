@@ -83,14 +83,21 @@ func (s *service) PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadRe
 		return nil, fmt.Errorf("pending transfer already exists for session: %s", request.SessionID)
 	}
 
-
-	// TODO: cblgh/(2026-03-06):
-	// check that config.MaxFileCount is not exceeded in prepare-upload data
-	// check that config.MaxFileFileSizeBytes is not exceeded for any file in prepare-upload data
-
 	// correctly checks that the sessionID from the registration is the same as the sessionID arriving in our prepare-upload request
 	if !s.sessionIsValid(request.SessionID) {
 		return nil, transferutils.ErrInvalidSession
+	}
+
+	/* check desktop-defined limits */
+	// ensure config.MaxFileCount is not exceeded in prepare-upload data
+	if len(request.Files) > s.config.MaxFileCount {
+		return nil, transferutils.ErrTransferTooLarge 
+	}
+	// ensure config.MaxFileFileSizeBytes is not exceeded for any file in prepare-upload data
+	for _, file := range request.Files {
+		if file.Size > s.config.MaxFileSizeBytes {
+			return nil, transferutils.ErrTransferTooLarge 
+		}
 	}
 
 	s.pendingTransfers.Store(request.SessionID, pendingTransfer)
@@ -114,6 +121,9 @@ func (s *service) PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadRe
 	case err := <-pendingTransfer.ErrorChan:
 		s.pendingTransfers.Delete(request.SessionID)
 		return nil, err
+	case <-s.done:
+		s.pendingTransfers.Delete(request.SessionID)
+		return nil, fmt.Errorf("request timeout - connection was closed by recipient")
 	case <-time.After(5 * time.Minute):
 		s.pendingTransfers.Delete(request.SessionID)
 		return nil, fmt.Errorf("request timeout - no response from recipient")

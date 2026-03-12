@@ -9,6 +9,9 @@ var (
 	ErrInvalidSession      = errors.New("invalid session")
 	ErrInvalidTransmission = errors.New("invalid transmission")
 	ErrTransferComplete    = errors.New("transfer already completed")
+	ErrTransferRejected    = errors.New("transfer rejected")
+	ErrTransferTooLarge    = errors.New("content too large")
+	ErrTransferInsufficentSpace = errors.New("Insufficient storage space")
 )
 
 // TODO cblgh(2026-02-12): actually implement validation

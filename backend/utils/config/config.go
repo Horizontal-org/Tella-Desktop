@@ -13,14 +13,14 @@ import (
 )
 
 type Config struct {
-	MaxFileSizeBytes int `json:"maxFileSizeBytes"`
+	MaxFileSizeBytes int64 `json:"maxFileSizeBytes"`
 	MaxFileCount int `json:"maxFileCount"`
 	Port int `json:"defaultPort"`
 }
 
-var defaultMaxFileSize = 3000000000 // 3 GB
-var defaultMaxFileCount = 1000 
-var defaultPort = 53317
+var defaultMaxFileSize int64 = 3000000000 // 3 GB
+var defaultMaxFileCount int = 1000 
+var defaultPort = 53320
 
 func WriteDefaultConfig() {
 	defaultConfig := fmt.Sprintf(`maxFileSizeBytes = %d

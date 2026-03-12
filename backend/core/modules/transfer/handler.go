@@ -4,6 +4,7 @@ import (
 	"Tella-Desktop/backend/core/modules/filestore"
 	"Tella-Desktop/backend/utils/transferutils"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 )
@@ -55,7 +56,7 @@ func (h *Handler) HandleCloseConnection(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(map[string]bool{ "success": true }); err != nil {
+	if err := json.NewEncoder(w).Encode(map[string]bool{"success": true}); err != nil {
 		fmt.Printf("Failed to encode response: %s\n", err.Error())
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -76,16 +77,27 @@ func (h *Handler) HandlePrepare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO cblgh(2026-03-09): improve prepare-upload request validation logic
 	if err := request.Validate(); err != nil {
-		fmt.Printf("Invalid prepare upload request: %s\n", err.Error())
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		fmt.Printf("Invalid request format: %s\n", err.Error())
+		http.Error(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
 
 	response, err := h.service.PrepareUpload(&request)
 	if err != nil {
-		fmt.Printf("Failed to prepare upload: %s\n", err.Error())
-		http.Error(w, "Failed to prepare upload", http.StatusInternalServerError)
+		httpErrCode := http.StatusInternalServerError
+		errMessage := "Failed to prepare upload"
+		if errors.Is(err, transferutils.ErrTransferTooLarge) {
+			httpErrCode = http.StatusRequestEntityTooLarge
+			errMessage = "Content too large"
+		} else if errors.Is(err, transferutils.ErrInvalidSession) {
+			// return 401
+			httpErrCode = http.StatusUnauthorized
+			errMessage = "Invalid session ID"
+		}
+		fmt.Printf("%s: %s\n", errMessage, err.Error())
+		http.Error(w, errMessage, httpErrCode)
 		return
 	}
 
@@ -145,6 +157,9 @@ func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid session", http.StatusUnauthorized)
 		case transferutils.ErrInvalidTransmission:
 			http.Error(w, "Invalid transmission ID", http.StatusUnauthorized)
+		// TODO cblgh(2026-03-12): implement detection of this situation in service in order to return this error 
+		case transferutils.ErrTransferInsufficentSpace:
+			http.Error(w, "Insufficient storage space", http.StatusInsufficientStorage)
 		case transferutils.ErrTransferComplete:
 			http.Error(w, "Transfer already completed", http.StatusConflict)
 		default:
