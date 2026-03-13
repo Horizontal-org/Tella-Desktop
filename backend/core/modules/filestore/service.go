@@ -57,6 +57,7 @@ func (s *service) StoreFile(folderID, claimedSize int64, fileName string, claime
 	}
 
 	inferredMIME := mimetype.Detect(fileData)
+	// TODO cblgh(2026-03-13): decide how to handle mimetype mismatch
 	if inferredMIME != nil && !inferredMIME.Is("application/octet-stream") &&  !inferredMIME.Is(claimedMimeType) {
 		fmt.Println("MISMATCH DETECTED: claimed mimetype does not match mimetype based on file data")
 	}
