@@ -4,12 +4,14 @@ import (
 	"Tella-Desktop/backend/utils/authutils"
 	"Tella-Desktop/backend/utils/filestoreutils"
 	util "Tella-Desktop/backend/utils/genericutil"
+	"Tella-Desktop/backend/utils/transferutils"
 	"context"
 	"database/sql"
 	"fmt"
 	"io"
 	"os"
 	"time"
+	"crypto/sha256"
 
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
@@ -32,7 +34,7 @@ func NewService(ctx context.Context, db *sql.DB, dbKey []byte) Service {
 }
 
 // StoreFile encrypts and stores a file in TVault
-func (s *service) StoreFile(folderID, claimedSize int64, fileName string, claimedMimeType string, reader io.Reader) (*FileMetadata, error) {
+func (s *service) StoreFile(folderID, claimedSize int64, claimedHash string, fileName string, claimedMimeType string, reader io.Reader) (*FileMetadata, error) {
 	// Begin Transaction
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -54,6 +56,12 @@ func (s *service) StoreFile(folderID, claimedSize int64, fileName string, claime
 	fmt.Println("filestore err?", fileName, err)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file data: %w", err)
+	}
+
+	// TODO (2026-03-14): convert to use incremental hashing if incremental file storagage + reading is implemented
+	sum := sha256.Sum256(fileData)
+	if fmt.Sprintf("%x", sum) != claimedHash {
+		return nil, transferutils.ErrTransferHashMismatch
 	}
 
 	inferredMIME := mimetype.Detect(fileData)

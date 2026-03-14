@@ -12,6 +12,7 @@ var (
 	ErrTransferRejected         = errors.New("transfer rejected")
 	ErrTransferTooLarge         = errors.New("content too large")
 	ErrTransferInsufficentSpace = errors.New("Insufficient storage space")
+	ErrTransferHashMismatch			= errors.New("File hash mismatch")
 )
 
 // TODO cblgh(2026-02-12): actually implement validation

@@ -15,8 +15,12 @@ func NewNonceManager() *NonceManager {
 }
 
 var ErrNonceReuse = errors.New("nonce has already been seen before")
+var ErrNonceZeroLength = errors.New("nonce is of length zero")
 
 func (n *NonceManager) Add(nonce string) error {
+	if nonce == "" {
+		return ErrNonceZeroLength
+	}
 	if _, ok := n.seen.Load(nonce); ok {
 		return ErrNonceReuse
 	}

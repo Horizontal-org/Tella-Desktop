@@ -76,7 +76,7 @@ func (h *Handler) HandlePrepare(w http.ResponseWriter, r *http.Request) {
 	var request PrepareUploadRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		fmt.Printf("Failed to decode prepare upload request: %s\n", err.Error())
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		http.Error(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
 
@@ -89,7 +89,7 @@ func (h *Handler) HandlePrepare(w http.ResponseWriter, r *http.Request) {
 
 	err := h.nonceManager.Add(request.Nonce)
 	if err != nil {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		http.Error(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
 
@@ -118,8 +118,8 @@ func (h *Handler) HandlePrepare(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// TODO: cblgh(2026-02-13): wrap handler in a http.MaxBytesHandler and/or instantiate a io.LimitReader with the limit for
-// numbytes registered by prepareUpload for the given fileID / transmissionID
+// HandleUpload has its body wrapped in a MaxBytesReader to limit the amount of bytes that will be read of an incoming
+// payload. The limit is configurable in the application config.
 func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -183,6 +183,8 @@ func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Insufficient storage space", http.StatusInsufficientStorage)
 		case transferutils.ErrTransferComplete:
 			http.Error(w, "Transfer already completed", http.StatusConflict)
+		case transferutils.ErrTransferHashMismatch:
+			http.Error(w, "File hash mismatch", http.StatusNotAcceptable)
 		default:
 			fmt.Printf("\nUpload failed: %s\n", err.Error())
 			http.Error(w, "Failed to store file", http.StatusInternalServerError)

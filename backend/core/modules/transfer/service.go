@@ -352,7 +352,7 @@ func (s *service) HandleUpload(sessionID, transmissionID, fileID string, reader 
 	// NOTE cblgh(2026-02-19): running into a bug when uploading a large file as part of many other files; something to the effect of
 	// what is described here https://github.com/googleapis/google-cloud-go/issues/987
 	// and somewhat detailed in https://github.com/golang/go/issues/26338
-	metadata, err := s.fileService.StoreFile(actualFolderID, transfer.FileInfo.Size, fileName, mimeType, reader)
+	metadata, err := s.fileService.StoreFile(actualFolderID, transfer.FileInfo.Size, transfer.FileInfo.SHA256, fileName, mimeType, reader)
 	transferFailed := err != nil
 
 	if transferFailed {
@@ -395,6 +395,9 @@ resolveLoop:
 		unwrappedErr := errors.Unwrap(err)
 		if _, ok := unwrappedErr.(*http.MaxBytesError); ok {
 			return transferutils.ErrTransferTooLarge
+		}
+		if errors.Is(err, transferutils.ErrTransferHashMismatch) {
+			return transferutils.ErrTransferHashMismatch
 		}
 		return fmt.Errorf("failed to store file: %w", err)
 	}
