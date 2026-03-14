@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	util "Tella-Desktop/backend/utils/genericutil"
 	"Tella-Desktop/backend/utils/constants"
+	util "Tella-Desktop/backend/utils/genericutil"
 )
 
 // Test-specific helper functions that use a provided TVault path

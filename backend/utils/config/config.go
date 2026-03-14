@@ -2,10 +2,10 @@ package config
 
 import (
 	"bytes"
-	"fmt"
 	"encoding/json"
-	"os"
 	"errors"
+	"fmt"
+	"os"
 
 	"Tella-Desktop/backend/utils/authutils"
 	"Tella-Desktop/backend/utils/genericutil"
@@ -14,12 +14,12 @@ import (
 
 type Config struct {
 	MaxFileSizeBytes int64 `json:"maxFileSizeBytes"`
-	MaxFileCount int `json:"maxFileCount"`
-	Port int `json:"defaultPort"`
+	MaxFileCount     int   `json:"maxFileCount"`
+	Port             int   `json:"defaultPort"`
 }
 
 var defaultMaxFileSize int64 = 3000000000 // 3 GB
-var defaultMaxFileCount int = 1000 
+var defaultMaxFileCount int = 1000
 var defaultPort = 53320
 
 func WriteDefaultConfig() {

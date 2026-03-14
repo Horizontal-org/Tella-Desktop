@@ -2,6 +2,7 @@ package transfer
 
 import (
 	"Tella-Desktop/backend/core/modules/filestore"
+	"Tella-Desktop/backend/utils/nonces"
 	"Tella-Desktop/backend/utils/transferutils"
 	"encoding/json"
 	"errors"
@@ -10,13 +11,15 @@ import (
 )
 
 type Handler struct {
+	nonceManager  *nonces.NonceManager
 	service       Service
 	fileService   filestore.Service
 	defaultFolder int64 // Default folder ID to store received files
 }
 
-func NewHandler(service Service, fileService filestore.Service, defaultFolder int64) *Handler {
+func NewHandler(service Service, fileService filestore.Service, defaultFolder int64, nm *nonces.NonceManager) *Handler {
 	return &Handler{
+		nonceManager:  nm,
 		service:       service,
 		fileService:   fileService,
 		defaultFolder: defaultFolder,
@@ -84,6 +87,12 @@ func (h *Handler) HandlePrepare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err := h.nonceManager.Add(request.Nonce)
+	if err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
 	response, err := h.service.PrepareUpload(&request)
 	if err != nil {
 		httpErrCode := http.StatusInternalServerError
@@ -120,6 +129,7 @@ func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("sessionId")
 	transmissionID := r.URL.Query().Get("transmissionId")
 	fileID := r.URL.Query().Get("fileId")
+	nonce := r.URL.Query().Get("nonce")
 
 	// TODO cblgh(2026-02-17): pass enough information to ValidateUploadRequest that it can actually perform validation
 	// or remove the function entirely (it is basically unused)
@@ -132,6 +142,12 @@ func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Printf("Transfer not found for fileID: %s\n", fileID)
 		http.Error(w, "Transfer not found", http.StatusNotFound)
+		return
+	}
+
+	err = h.nonceManager.Add(nonce)
+	if err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
@@ -162,7 +178,7 @@ func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid transmission ID", http.StatusUnauthorized)
 		case transferutils.ErrTransferTooLarge:
 			http.Error(w, "Content too large", http.StatusRequestEntityTooLarge)
-		// TODO cblgh(2026-03-12): implement detection of hdd space running out in FileService in order to return this error 
+		// TODO cblgh(2026-03-12): implement detection of hdd space running out in FileService in order to return this error
 		case transferutils.ErrTransferInsufficentSpace:
 			http.Error(w, "Insufficient storage space", http.StatusInsufficientStorage)
 		case transferutils.ErrTransferComplete:

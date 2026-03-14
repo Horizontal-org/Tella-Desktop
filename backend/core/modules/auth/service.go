@@ -88,7 +88,6 @@ func (s *service) CreatePassword(password string) error {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-
 	encryptedDBKey, err := authutils.EncryptData(dbKey, raw.Hash)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt database key: %w", err)

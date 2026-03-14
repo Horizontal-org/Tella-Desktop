@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	util "Tella-Desktop/backend/utils/genericutil"
 	"Tella-Desktop/backend/utils/constants"
+	util "Tella-Desktop/backend/utils/genericutil"
 )
 
 // Create a test-specific implementation of the auth service
@@ -40,7 +40,7 @@ func (s *testService) IsFirstTimeSetup() bool {
 	return os.IsNotExist(err)
 }
 
-func (s *testService) ClearSession()  {
+func (s *testService) ClearSession() {
 	// Clear the database key from memory
 	if s.dbKey != nil {
 		// Zero out the key for security

@@ -4,23 +4,23 @@ import (
 	"Tella-Desktop/backend/utils/transferutils"
 	"context"
 	"database/sql"
-	"net/http"
-	"fmt"
 	"errors"
+	"fmt"
 	"io"
+	"net/http"
 	"sync"
 	"time"
 
 	"Tella-Desktop/backend/core/modules/filestore"
-	"Tella-Desktop/backend/utils/constants"
 	"Tella-Desktop/backend/utils/config"
+	"Tella-Desktop/backend/utils/constants"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type service struct {
-	config					 config.Config
+	config           config.Config
 	ctx              context.Context
 	transfers        sync.Map
 	pendingTransfers sync.Map
@@ -50,23 +50,23 @@ type TransferSession struct {
 }
 
 // timeout = 10 hours. We use a long timeout so that our fallback for cleaning up memory does not risk causing issues
-// with rare very long duration transfers. 
-// 
+// with rare very long duration transfers.
+//
 // If we assume transfer speeds of [1MB/s, 6MB/s], then the chosen window gives us a transfered total payload [36GB, 216GB] in the given 10h window.
-const REFRESH_TIMEOUT_MIN = 45   // timeout window allows for transfers between [27GB and 162GB] for speeds [1MB/s, 6MB/s]
+const REFRESH_TIMEOUT_MIN = 45 // timeout window allows for transfers between [27GB and 162GB] for speeds [1MB/s, 6MB/s]
 
 func NewService(ctx context.Context, fileSerservice filestore.Service, db *sql.DB, sessionIsValid func(string) bool, forgetSession func(string)) Service {
 	conf := config.ReadConfig()
 	return &service{
-		config: conf,
+		config:           conf,
 		ctx:              ctx,
 		transfers:        sync.Map{},
 		pendingTransfers: sync.Map{},
 		fileService:      fileSerservice,
 		db:               db,
-		sessionIsValid: sessionIsValid,
-		forgetSession: forgetSession,
-		done: make(chan struct{}),
+		sessionIsValid:   sessionIsValid,
+		forgetSession:    forgetSession,
+		done:             make(chan struct{}),
 	}
 }
 
@@ -93,24 +93,24 @@ func (s *service) PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadRe
 	/* check desktop-defined limits */
 	// ensure config.MaxFileCount is not exceeded in prepare-upload data
 	if len(request.Files) > s.config.MaxFileCount {
-		return nil, transferutils.ErrTransferTooLarge 
+		return nil, transferutils.ErrTransferTooLarge
 	}
 	// ensure config.MaxFileFileSizeBytes is not exceeded for any file in prepare-upload data
 	for _, file := range request.Files {
 		if file.Size > s.config.MaxFileSizeBytes {
-			return nil, transferutils.ErrTransferTooLarge 
+			return nil, transferutils.ErrTransferTooLarge
 		}
 	}
 
 	s.pendingTransfers.Store(request.SessionID, pendingTransfer)
 
 	runtime.EventsEmit(s.ctx, "prepare-upload-request", map[string]interface{}{
-		"sessionId":  request.SessionID,
-		"title":      request.Title,
-		"files":      request.Files,
-		"totalFiles": len(request.Files),
+		"sessionId":        request.SessionID,
+		"title":            request.Title,
+		"files":            request.Files,
+		"totalFiles":       len(request.Files),
 		"transferredFiles": 0,
-		"totalSize":  s.calculateTotalSize(request.Files),
+		"totalSize":        s.calculateTotalSize(request.Files),
 	})
 
 	// Cleanup of s.pendingTransfers: select waits until one of the channels has a communication (a channel send event, in all
@@ -152,15 +152,15 @@ func (s *service) AcceptTransfer(sessionID string) error {
 		return fmt.Errorf("failed to create transfer folder: %w", err)
 	}
 
-	var fileIDs[] string 
+	var fileIDs []string
 	var responseFiles []FileTransmissionInfo
 	for _, fileInfo := range pendingTransfer.Files {
 		transmissionID := uuid.New().String()
 		transfer := &Transfer{
 			TransmissionID: transmissionID,
-			SessionID: sessionID,
-			FileInfo:  fileInfo,
-			Status:    "pending",
+			SessionID:      sessionID,
+			FileInfo:       fileInfo,
+			Status:         "pending",
 		}
 		s.transfers.Store(fileInfo.ID, transfer)
 		fileIDs = append(fileIDs, fileInfo.ID)
@@ -172,12 +172,12 @@ func (s *service) AcceptTransfer(sessionID string) error {
 	}
 
 	transferSession := &TransferSession{
-		SessionID: sessionID,
-		FolderID:  folderID,
-		Title:     pendingTransfer.Title,
-		FileIDs:   fileIDs,
+		SessionID:         sessionID,
+		FolderID:          folderID,
+		Title:             pendingTransfer.Title,
+		FileIDs:           fileIDs,
 		SeenTransmissions: make(map[string]bool),
-		ExpiresAt: time.Now().Add(REFRESH_TIMEOUT_MIN * time.Minute),
+		ExpiresAt:         time.Now().Add(REFRESH_TIMEOUT_MIN * time.Minute),
 	}
 
 	s.transfers.Store(sessionID+"_session", transferSession)
@@ -190,12 +190,14 @@ func (s *service) AcceptTransfer(sessionID string) error {
 	//
 	// note: this is currently taken care of by s.endTransfer, but a more orderly exit would be prefered :)
 	go (func(fileIDs []string) {
-		// 'done' channel fires when application has been locked -> 
+		// 'done' channel fires when application has been locked ->
 		// exit goroutine and allow GC to cleanup reference to this service
 		select {
 		case <-s.done:
 		case <-time.After(constants.CLEAN_UP_SESSION_TIMEOUT_MIN * time.Minute):
-			if s == nil { return }
+			if s == nil {
+				return
+			}
 			for _, fileID := range fileIDs {
 				s.ForgetTransfer(fileID)
 			}
@@ -342,13 +344,12 @@ func (s *service) HandleUpload(sessionID, transmissionID, fileID string, reader 
 	// NOTE cblgh(2026-02-19): LimitReader returns an EOF, which signals the end of reading activities for io.ReadAll or
 	// io.Copy. this means that we will only read exactly as many bytes as the sender has told us this file size is! if
 	// the file size is incorrectly stated, we will not read or save "the full file". coupled with the sha256 hashes we
-	// can detect any such issues. 
+	// can detect any such issues.
 	// limit reading of the response to the claimed filesize. reading more bytes than the claimed size will return an error
 	fmt.Println("fileName is", fileName, "claimed size", transfer.FileInfo.Size)
 	// limitReader := io.LimitReader(reader, transfer.FileInfo.Size)
 
-
-	// NOTE cblgh(2026-02-19): running into a bug when uploading a large file as part of many other files; something to the effect of 
+	// NOTE cblgh(2026-02-19): running into a bug when uploading a large file as part of many other files; something to the effect of
 	// what is described here https://github.com/googleapis/google-cloud-go/issues/987
 	// and somewhat detailed in https://github.com/golang/go/issues/26338
 	metadata, err := s.fileService.StoreFile(actualFolderID, transfer.FileInfo.Size, fileName, mimeType, reader)
@@ -371,7 +372,7 @@ func (s *service) HandleUpload(sessionID, transmissionID, fileID string, reader 
 	// determine whether all files in a given transfer resolved (Status == {failed || completed})
 	// -> perform session clean up when this happens
 	allTransfersResolved := true
-	resolveLoop:
+resolveLoop:
 	for _, fid := range ongoingSession.FileIDs {
 		if v, exists := s.transfers.Load(fid); exists {
 			if transferInfo, ok := v.(*Transfer); ok {
@@ -393,7 +394,7 @@ func (s *service) HandleUpload(sessionID, transmissionID, fileID string, reader 
 	if transferFailed {
 		unwrappedErr := errors.Unwrap(err)
 		if _, ok := unwrappedErr.(*http.MaxBytesError); ok {
-			return transferutils.ErrTransferTooLarge 
+			return transferutils.ErrTransferTooLarge
 		}
 		return fmt.Errorf("failed to store file: %w", err)
 	}

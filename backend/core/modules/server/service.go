@@ -2,24 +2,29 @@ package server
 
 import (
 	"context"
-	"fmt"
 	crand "crypto/rand"
-	"strconv"
-	"strings"
+	"fmt"
 	"math/big"
 	"net"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
+
+	"gomod.cblgh.org/cerca/limiter"
 
 	"Tella-Desktop/backend/core/modules/filestore"
 	"Tella-Desktop/backend/core/modules/registration"
 	"Tella-Desktop/backend/core/modules/transfer"
 	"Tella-Desktop/backend/utils/network"
+	"Tella-Desktop/backend/utils/nonces"
 	"Tella-Desktop/backend/utils/tls"
 )
 
 type service struct {
+	nonceManager        *nonces.NonceManager
+	limiter             *RateLimitingWare
 	server              *http.Server
 	listener            net.Listener
 	running             bool
@@ -41,8 +46,13 @@ func NewService(
 	transferService transfer.Service,
 	fileService filestore.Service,
 	defaultFolderID int64,
+	nonceManager *nonces.NonceManager,
 ) Service {
+
+	rateLimitingInstance := NewRateLimitingWare()
 	srv := &service{
+		nonceManager:        nonceManager,
+		limiter:             rateLimitingInstance,
 		ctx:                 ctx,
 		running:             false,
 		registrationService: registrationService,
@@ -55,6 +65,40 @@ func NewService(
 	return srv
 }
 
+type RateLimitingWare struct {
+	limiter *limiter.TimedRateLimiter
+}
+
+func NewRateLimitingWare() *RateLimitingWare {
+	ware := RateLimitingWare{}
+	// refresh one access every 30 seconds. forget about the requester after 24h of non-activity
+	ware.limiter = limiter.NewTimedRateLimiter([]string{}, 30*time.Second, 24*time.Hour)
+	// allow initial burst rate allowance to 1000 allow requests at once
+	// NOTE cblgh(2026-03-13): different approach: start with small burst allowance and when progressing to upload, increase burst allowance? alt: use different rate limiter for upload
+	ware.limiter.SetBurstAllowance(1000)
+	ware.limiter.SetLimitAllRoutes(true)
+	return &ware
+}
+
+func (ware *RateLimitingWare) Handler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		portIndex := strings.LastIndex(req.RemoteAddr, ":")
+		ip := req.RemoteAddr[:portIndex]
+		// specific fix in case of using a reverse proxy setup
+		if address, exists := req.Header["X-Real-Ip"]; ip == "127.0.0.1" && exists {
+			ip = address[0]
+		}
+		isLimited := ware.limiter.IsLimited(ip, req.URL.String())
+		if isLimited {
+			http.Error(res, "Too many requests", http.StatusTooManyRequests)
+			return
+		}
+		next.ServeHTTP(res, req)
+	})
+}
+
+// TODO cblgh(2026-03-13): revamp backend to be stateful like frontend
+// <zero state> -> [ping] -> [register] -> [prepare-upload] -> [upload] -> [close-connection] -> <end>
 func (s *service) Start(port int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -93,7 +137,7 @@ func (s *service) Start(port int) error {
 
 	// TODO cblgh(2026-02-16): pass something (serverErrors? another channel?) to transfer's handler so that
 	// close-connection can terminate the server
-	transferHandler := transfer.NewHandler(s.transferService, s.fileService, s.defaultFolderID)
+	transferHandler := transfer.NewHandler(s.transferService, s.fileService, s.defaultFolderID, s.nonceManager)
 
 	// TODO (2026-02-19): dhekra / iOS closes the server when the transfer is explicitly stopped
 	// TODO cblgh(2026-02-16): if using channel for close-connection then make sure, for all other paths, to drain <-done so that we don't have a goroutine leak
@@ -102,20 +146,22 @@ func (s *service) Start(port int) error {
 	// 	s.Stop(context.TODO)
 	// }()
 
-
 	handler := NewHandler(mux, s.registrationHandler, transferHandler)
 	handler.SetupRoutes()
 
+	limitingMiddleware := s.limiter.Handler(mux)
+
 	s.server = &http.Server{
-		Addr:         fmt.Sprintf(":%d", port),
-		Handler:      mux,
-		TLSConfig:    tlsConfig,
-		// TODO cblgh(2026-02-16): verify that ReadTimeout is what is causing the timeout behaviour after having received
-		// ~150MB out of a 200MB large file
-		ReadTimeout:  0, // do not time out when reading body -- we will potentially be receiving multi gigabyte uploads
+		Addr:      fmt.Sprintf(":%d", port),
+		Handler:   limitingMiddleware,
+		TLSConfig: tlsConfig,
+		// TODO cblgh(2026-02-16): the Timeout options were causing a a dysfunctional timeout behaviour for receiving large
+		// files. the timeout would happen when having received ~150MB out of a 200MB large file. this is why they are set
+		// to 0
+		ReadTimeout:       0, // do not time out when reading body -- we will potentially be receiving multi gigabyte uploads
 		ReadHeaderTimeout: 0, //30 * time.Second, // this configures timeouts on the header portion of each request, which should be small :)
-		WriteTimeout: 0,
-		IdleTimeout:  0,
+		WriteTimeout:      0,
+		IdleTimeout:       0,
 	}
 
 	s.port = port
@@ -190,6 +236,7 @@ func (s *service) GetPIN() string {
 }
 
 const PIN_LEN = 6
+
 func generateRandomPIN() string {
 	maxN := big.NewInt(10)
 	var sequence []string

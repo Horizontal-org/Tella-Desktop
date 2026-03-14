@@ -14,6 +14,7 @@ import (
 	"Tella-Desktop/backend/utils/authutils"
 	"Tella-Desktop/backend/utils/config"
 	"Tella-Desktop/backend/utils/network"
+	"Tella-Desktop/backend/utils/nonces"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -22,6 +23,7 @@ import (
 type App struct {
 	ctx                 context.Context
 	db                  *database.DB
+	nonceManager        *nonces.NonceManager
 	authService         auth.Service
 	registrationService registration.Service
 	registrationHandler *registration.Handler
@@ -89,6 +91,7 @@ func (a *App) Startup(ctx context.Context) {
 		runtime.LogFatalf(ctx, "Failed to initialize auth service: %v", err)
 		return
 	}
+	a.nonceManager = nonces.NewNonceManager()
 }
 
 func (a *App) ConfirmRegistration() error {
@@ -153,6 +156,7 @@ func (a *App) initializeServices() error {
 		a.transferService,
 		a.fileService,
 		a.defaultFolderID,
+		a.nonceManager,
 	)
 	return nil
 }

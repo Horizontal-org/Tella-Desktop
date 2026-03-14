@@ -14,7 +14,7 @@ type service struct {
 	sessions    map[string]*Session
 	pinCode     string
 	rateLimiter map[string]int
-	done chan struct{}
+	done        chan struct{}
 }
 
 type Session struct {
@@ -28,7 +28,7 @@ func NewService(ctx context.Context) Service {
 		ctx:         ctx,
 		sessions:    make(map[string]*Session),
 		rateLimiter: make(map[string]int),
-		done:       make(chan struct{}),
+		done:        make(chan struct{}),
 	}
 }
 
@@ -56,11 +56,11 @@ func (s *service) CreateSession(pin, nonce string) (string, error) {
 
 	// cleanup fallback in case of lifecycle fuckup elsewhere / transfer service's session management
 	// TODO cblgh(2026-02-17): add explicit lifecycle 'close' function which would also drain this goroutine (otherwise
-	// risk for goroutine leak since it's only cleaned up 10h after starting). 
-	// 
+	// risk for goroutine leak since it's only cleaned up 10h after starting).
+	//
 	// note: this is currently taken care of by s.ForgetSession, but a more orderly exit would be prefered :)
 	go (func(sid string) {
-		// 'done' channel fires when application has been locked -> 
+		// 'done' channel fires when application has been locked ->
 		// exit goroutine and allow GC to cleanup reference to this service
 		select {
 		case <-s.done:

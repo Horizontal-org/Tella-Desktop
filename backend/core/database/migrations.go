@@ -1,7 +1,7 @@
 package database
 
 type migrationEntry struct {
-	Name string
+	Name    string
 	Content string
 }
 

@@ -48,7 +48,7 @@ func (s *service) StoreFile(folderID, claimedSize int64, fileName string, claime
 	// this happens when i send from Tella iOS a quicktime video at the same time as a bunch of heic files.
 	// error message:
 	// Upload failed: failed to store file: failed to read file data: i/o timeout
-	// 
+	//
 	// as a piece of debugging information, it happens after ~150MB is sent.
 	fileData, err := io.ReadAll(reader)
 	fmt.Println("filestore err?", fileName, err)
@@ -58,14 +58,14 @@ func (s *service) StoreFile(folderID, claimedSize int64, fileName string, claime
 
 	inferredMIME := mimetype.Detect(fileData)
 	// TODO cblgh(2026-03-13): decide how to handle mimetype mismatch
-	if inferredMIME != nil && !inferredMIME.Is("application/octet-stream") &&  !inferredMIME.Is(claimedMimeType) {
+	if inferredMIME != nil && !inferredMIME.Is("application/octet-stream") && !inferredMIME.Is(claimedMimeType) {
 		fmt.Println("MISMATCH DETECTED: claimed mimetype does not match mimetype based on file data")
 	}
 
 	originalSize := int64(len(fileData))
 	fmt.Println("filestore", fileName, "read size", originalSize)
 	if originalSize != claimedSize {
-		return nil, fmt.Errorf("file %q: downloaded size (%d) did not match claimed size (%d) from prepareUpload (difference: %d)", fileName, originalSize, claimedSize, originalSize - claimedSize)
+		return nil, fmt.Errorf("file %q: downloaded size (%d) did not match claimed size (%d) from prepareUpload (difference: %d)", fileName, originalSize, claimedSize, originalSize-claimedSize)
 	}
 	fileKey := filestoreutils.GenerateFileKey(fileUUID, s.dbKey)
 

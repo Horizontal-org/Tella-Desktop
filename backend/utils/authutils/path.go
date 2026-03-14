@@ -1,17 +1,17 @@
 package authutils
 
 import (
-	"path/filepath"
 	"github.com/adrg/xdg"
+	"path/filepath"
 )
 
 // Directory constants
 const (
 	// TODO cblgh(2026-03-06): obfuscate `TellaAppName`?
-	TellaAppName = "Tella"
-	TVaultFile   = ".tvault"
-	TellaDBFile  = ".tella.db"
-	TempDir      = "temp"
+	TellaAppName   = "Tella"
+	TVaultFile     = ".tvault"
+	TellaDBFile    = ".tella.db"
+	TempDir        = "temp"
 	ConfigFilename = "desktop-settings.toml"
 )
 

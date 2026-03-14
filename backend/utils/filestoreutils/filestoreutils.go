@@ -113,7 +113,7 @@ func GetFileExtensionFromMimeType(mimeType string) string {
 		return lookup.Extension()
 	}
 
-	// if our library doesn't have any record of this mimetype, try to extract something useful from the mimeType. 
+	// if our library doesn't have any record of this mimetype, try to extract something useful from the mimeType.
 	// worst case, if mime type is not anything intelligible,  default to returning just `.file` as extension
 	prefixes := []string{"image/", "video/", "audio/", "text/"}
 	for _, prefix := range prefixes {
@@ -218,7 +218,7 @@ func GetSelectedFilesInFolder(db *sql.DB, folderID int64, fileIDs []int64) ([]Fi
 	// to eliminate the risk of SQLi due to dynamic query construction, we split up the query into one two steps: step 1
 	// uses a static prepared sql statement to get all relevant files. step 2 does a Go-based filtering on the returned db results.
 
-	// step 1: get all the files for the given folder marked as not deleted 
+	// step 1: get all the files for the given folder marked as not deleted
 	filesInFolderQuery := `SELECT id, name, mime_type, created_at, size 
 	FROM files 
 	WHERE folder_id = ? AND is_deleted = 0 
@@ -237,7 +237,7 @@ func GetSelectedFilesInFolder(db *sql.DB, folderID int64, fileIDs []int64) ([]Fi
 		if err := rows.Scan(&file.ID, &file.Name, &file.MimeType, &file.Timestamp, &file.Size); err != nil {
 			return nil, fmt.Errorf("failed to scan file: %w", err)
 		}
-		// step 2: filter retrieved files to the subset defined by fileIDs. 
+		// step 2: filter retrieved files to the subset defined by fileIDs.
 		// in this case, we only append to slice `files` if file.ID matches one of the ids in fileIDs.
 		for _, fid := range fileIDs {
 			if file.ID == fid {
@@ -281,7 +281,7 @@ func decryptAndGetFilename(db *sql.DB, fid int64, dbKey []byte, tvault *os.File)
 		detectedMIME = inferredMIME.String()
 	}
 	// Ensure filename has proper extension based on mimetype
-	fileName := EnsureFileExtension(metadata.Name, detectedMIME,  metadata.MimeType)
+	fileName := EnsureFileExtension(metadata.Name, detectedMIME, metadata.MimeType)
 	return decryptedData, fileName, nil
 }
 
@@ -472,7 +472,7 @@ func GetFileMetadataForDeletion(tx *sql.Tx, ids []int64) ([]FileMetadata, error)
 				break
 			}
 		}
-		if createdAt.IsZero() { 
+		if createdAt.IsZero() {
 			createdAt = time.Now()
 		}
 		metadata.CreatedAt = createdAt

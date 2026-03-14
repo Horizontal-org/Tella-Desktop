@@ -30,8 +30,6 @@ func NarrowCreate(fpath string) (*os.File, error) {
 	return file, nil
 }
 
-
-
 // Routine has been lifted from matthewhartstonge/argon2 so as to not include all of argon2 in packages where that is
 // not needed. License: https://github.com/matthewhartstonge/argon2?tab=Apache-2.0-1-ov-file#readme
 //
