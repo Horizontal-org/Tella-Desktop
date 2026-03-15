@@ -74,6 +74,9 @@ func (s *service) CreateSession(pin, nonce string) (string, error) {
 
 	delete(s.rateLimiter, nonce) // if pin is success we delete the rate limiter
 
+	// TODO cblgh(2026-03-14): get and pin the senderHashCertificate
+	// --> the method that performs the pinning should also set correct information on the server's TLS config
+
 	return sessionID, nil
 }
 

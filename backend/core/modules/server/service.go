@@ -3,12 +3,16 @@ package server
 import (
 	"context"
 	crand "crypto/rand"
+	ctls "crypto/tls"
+	"crypto/x509"
+	"crypto/sha256"
 	"fmt"
 	"math/big"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"errors"
 	"sync"
 	"time"
 
@@ -23,8 +27,11 @@ import (
 )
 
 type service struct {
+	fingerprint				  string
+	limitingMiddleware  http.Handler 
 	nonceManager        *nonces.NonceManager
 	limiter             *RateLimitingWare
+	tlsConfig				    *ctls.Config
 	server              *http.Server
 	listener            net.Listener
 	running             bool
@@ -132,6 +139,26 @@ func (s *service) Start(port int) error {
 	if err != nil {
 		return fmt.Errorf("failed to generate TLS config: %v", err)
 	}
+	// do not require any client certs when server is freshly started
+	tlsConfig.ClientAuth = ctls.NoClientCert 
+	// NOTE cblgh(2026-03-15): set up a custom cert pool using the pinned cert?
+	// to allow use of tls.Config.ClientAuth: tls.RequireAndVerifyClientCert
+	// c.f https://stackoverflow.com/a/63317898
+	tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		fmt.Println("verify peer cert called")
+		encodedCert, err := tls.EncodeCertAsPEM(rawCerts[0])
+		if err != nil {
+			return err
+		}
+		calculatedPEMHash := sha256.Sum256(encodedCert)
+		fmt.Printf("incoming cert hash\n%x\n", calculatedPEMHash)
+		if fmt.Sprintf("%x", calculatedPEMHash) != s.fingerprint {
+			return errors.New("pin did not match")
+		}
+		return nil
+	}
+
+	s.tlsConfig = tlsConfig
 
 	mux := http.NewServeMux()
 
@@ -149,39 +176,46 @@ func (s *service) Start(port int) error {
 	handler := NewHandler(mux, s.registrationHandler, transferHandler)
 	handler.SetupRoutes()
 
-	limitingMiddleware := s.limiter.Handler(mux)
+	s.limitingMiddleware = s.limiter.Handler(mux)
+	s.port = port
+	err = s.startServer()
+	time.Sleep(500 * time.Millisecond)
+	if err != nil {
+		return err
+	}
 
+	go func() {
+		time.Sleep(5000 * time.Millisecond)
+		fakePinnedHash := "3d02d6d70209c6f13a43e041bec8614db75d78a8a5532de364a91784a1d61aa4"
+		s.PinFingerprint(fakePinnedHash)
+	}()
+
+	fmt.Printf("HTTPS Server started on port %d with PIN %s\n", port, s.pin)
+	return nil
+}
+
+func (s *service) startServer() error {
 	s.server = &http.Server{
-		Addr:      fmt.Sprintf(":%d", port),
-		Handler:   limitingMiddleware,
-		TLSConfig: tlsConfig,
-		// TODO cblgh(2026-02-16): the Timeout options were causing a a dysfunctional timeout behaviour for receiving large
-		// files. the timeout would happen when having received ~150MB out of a 200MB large file. this is why they are set
-		// to 0
+		Addr:      fmt.Sprintf(":%d", s.port),
+		Handler:   s.limitingMiddleware,
+		TLSConfig: s.tlsConfig,
+		// note cblgh(2026-02-16): the Timeout options were causing a a dysfunctional timeout behaviour for receiving large
+		// files. the timeout would happen when having received ~150MB out of a 200MB large file. this is why they are set to 0.
 		ReadTimeout:       0, // do not time out when reading body -- we will potentially be receiving multi gigabyte uploads
-		ReadHeaderTimeout: 0, //30 * time.Second, // this configures timeouts on the header portion of each request, which should be small :)
+		ReadHeaderTimeout: 0, 
 		WriteTimeout:      0,
 		IdleTimeout:       0,
 	}
 
-	s.port = port
-
-	serverErrors := make(chan error, 1)
-
-	// Start server in goroutine
+	serverErrors := make(chan error)
 	go func() {
 		if err := s.server.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("HTTP server error: %v\n", err)
 			serverErrors <- err
 			s.mu.Lock()
 			s.running = false
 			s.mu.Unlock()
 		}
 	}()
-
-	// Give the server time to start up properly
-	time.Sleep(500 * time.Millisecond)
-
 	// Check if there were any immediate startup errors
 	select {
 	case err := <-serverErrors:
@@ -189,10 +223,29 @@ func (s *service) Start(port int) error {
 	default:
 		// server started successfully
 	}
-
 	s.running = true
-	fmt.Printf("HTTPS Server started on port %d with PIN %s\n", port, s.pin)
 	return nil
+}
+
+// PinFingerprint pins the SHA256 hash of the PEM-encoded cert. The TLS config is changed to require a client cert, which necessitates restarting the https server instance.
+func (s *service) PinFingerprint(fingerprint string) error {
+	if len(fingerprint) != 64 {
+		return errors.New("expected fingerprint string length of 64ch")
+	}
+	s.fingerprint = fingerprint
+	// terminate the previous instance
+	shutdownCtx, cancel := context.WithTimeout(s.ctx, 750*time.Millisecond)
+	defer cancel()
+	if err := s.server.Shutdown(shutdownCtx); err != nil {
+		fmt.Printf("Graceful shutdown failed: %v, forcing close\n", err)
+	}
+	fmt.Println("stopped server & restarting")
+	// require client certs on connection going forward.
+	// use tls.RequireAnyClientCert as we do not have the full client cert => can't create and pass a cert pool that will allow tls.VerifyCertificate to succeed
+	s.tlsConfig.ClientAuth = ctls.RequireAnyClientCert
+	// NOTE cblgh(2026-03-15): we need to allocate a new instance of http.Server and set the updated TLS config on it
+	// before restarting the server for the config changes to take effect
+	return s.startServer()
 }
 
 func (s *service) Stop(ctx context.Context) error {
@@ -214,6 +267,9 @@ func (s *service) Stop(ctx context.Context) error {
 
 	s.running = false
 	s.server = nil
+	s.tlsConfig = nil
+	s.limitingMiddleware = nil
+	s.fingerprint = ""
 
 	fmt.Printf("HTTPS Server stopped\n")
 

@@ -10,6 +10,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/hex"
 	"encoding/pem"
+	"bytes"
 	"fmt"
 	"math/big"
 	"net"
@@ -153,6 +154,16 @@ func writeCertificateFile(path string, derBytes []byte) error {
 	}
 	return nil
 }
+
+func EncodeCertAsPEM(derBytes []byte) ([]byte, error) {
+	var certBuf bytes.Buffer
+	err := pem.Encode(&certBuf, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
+	if err != nil {
+		return nil, err
+	}
+	return certBuf.Bytes(), nil
+}
+
 
 func writePrivateKeyFile(path string, privateKey *rsa.PrivateKey) error {
 	keyOut, err := util.NarrowCreate(path)
