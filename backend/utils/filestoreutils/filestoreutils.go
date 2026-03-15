@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -173,6 +174,7 @@ type FileMetadata struct {
 	CreatedAt time.Time
 }
 
+var errGetMetadata = errors.New("error getting file metadata")
 // GetFileMetadataByID retrieves file metadata from database by ID
 func GetFileMetadataByID(db *sql.DB, id int64) (*FileMetadata, error) {
 	var metadata FileMetadata
@@ -185,14 +187,17 @@ func GetFileMetadataByID(db *sql.DB, id int64) (*FileMetadata, error) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("file not found with ID: %d", id)
+			log("file not found with ID: %d", id)
+			return nil, errGetMetadata
 		}
-		return nil, fmt.Errorf("failed to fetch file metadata: %w", err)
+		log("failed to fetch file metadata: %w", err)
+		return nil, errGetMetadata
 	}
 
 	return &metadata, nil
 }
 
+var errGetFolder = errors.New("error getting folder info")
 // GetFolderInfo retrieves folder information from database by ID
 func GetFolderInfo(db *sql.DB, folderID int64) (*FolderInfo, error) {
 	var folder FolderInfo
@@ -204,18 +209,22 @@ func GetFolderInfo(db *sql.DB, folderID int64) (*FolderInfo, error) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("folder not found with ID: %d", folderID)
+			log("folder not found with ID: %d", folderID)
+			return nil, errGetFolder
 		}
-		return nil, fmt.Errorf("failed to get folder info: %w", err)
+		log("failed to get folder info: %w", err)
+		return nil, errGetFolder
 	}
 
 	return &folder, nil
 }
 
+var errGetSelected = errors.New("error selecting files")
 // GetSelectedFilesInFolder retrieves specific files within a folder from database
 func GetSelectedFilesInFolder(db *sql.DB, folderID int64, fileIDs []int64) ([]FileInfo, error) {
 	if len(fileIDs) == 0 {
-		return nil, fmt.Errorf("no file IDs provided")
+		log("no file IDs provided")
+		return nil, errGetSelected
 	}
 
 	// to eliminate the risk of SQLi due to dynamic query construction, we split up the query into one two steps: step 1
@@ -230,7 +239,8 @@ func GetSelectedFilesInFolder(db *sql.DB, folderID int64, fileIDs []int64) ([]Fi
 	// Query creates a prepared stmt under the hood
 	rows, err := db.Query(filesInFolderQuery, folderID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query selected files: %w", err)
+		log("failed to query selected files: %w", err)
+		return nil, errGetSelected
 	}
 	defer rows.Close()
 
@@ -238,7 +248,8 @@ func GetSelectedFilesInFolder(db *sql.DB, folderID int64, fileIDs []int64) ([]Fi
 	for rows.Next() {
 		var file FileInfo
 		if err := rows.Scan(&file.ID, &file.Name, &file.MimeType, &file.Timestamp, &file.Size); err != nil {
-			return nil, fmt.Errorf("failed to scan file: %w", err)
+			log("failed to scan file: %w", err)
+			return nil, errGetSelected
 		}
 		// step 2: filter retrieved files to the subset defined by fileIDs.
 		// in this case, we only append to slice `files` if file.ID matches one of the ids in fileIDs.
@@ -251,23 +262,27 @@ func GetSelectedFilesInFolder(db *sql.DB, folderID int64, fileIDs []int64) ([]Fi
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating files: %w", err)
+		log("error iterating files: %w", err)
+		return nil, errGetSelected
 	}
 
 	return files, nil
 }
 
+var errDecrypt = errors.New("error decrypting file")
 func decryptAndGetFilename(db *sql.DB, fid int64, dbKey []byte, tvault *os.File) ([]byte, string, error) {
 	metadata, err := GetFileMetadataByID(db, fid)
 	if err != nil {
-		return nil, "", err
+		log("error getting filemetadata %v", err)
+		return nil, "", errDecrypt
 	}
 
 	// Read encrypted data from TVault
 	encryptedData := make([]byte, metadata.Length)
 	_, err = tvault.ReadAt(encryptedData, metadata.Offset)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to read file from TVault: %w", err)
+		log("failed to read file from TVault: %w", err)
+		return nil, "", errDecrypt
 	}
 	defer util.SecureZeroMemory(encryptedData)
 
@@ -275,7 +290,8 @@ func decryptAndGetFilename(db *sql.DB, fid int64, dbKey []byte, tvault *os.File)
 	fileKey := GenerateFileKey(metadata.UUID, dbKey)
 	decryptedData, err := authutils.DecryptData(encryptedData, fileKey)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to decrypt file: %w", err)
+		log("failed to decrypt file: %w", err)
+		return nil, "", errDecrypt
 	}
 
 	inferredMIME := mimetype.Detect(decryptedData)
@@ -288,11 +304,13 @@ func decryptAndGetFilename(db *sql.DB, fid int64, dbKey []byte, tvault *os.File)
 	return decryptedData, fileName, nil
 }
 
+var errExportFile = errors.New("error exporting file")
 // ExportSingleFile exports a single file to the specified directory
 func ExportSingleFile(db *sql.DB, dbKey []byte, id int64, tvault *os.File, exportDir string) (string, error) {
 	decryptedData, fileName, err := decryptAndGetFilename(db, id, dbKey, tvault)
 	if err != nil {
 		return "", err
+		return "", errExportFile
 	}
 	defer util.SecureZeroMemory(decryptedData)
 
@@ -302,14 +320,16 @@ func ExportSingleFile(db *sql.DB, dbKey []byte, id int64, tvault *os.File, expor
 	// Create the exported file
 	exportFile, err := util.NarrowCreate(exportPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to create export file: %w", err)
+		log("failed to create export file: %w", err)
+		return "", errExportFile
 	}
 	defer exportFile.Close()
 
 	// Write decrypted data to export file
 	_, err = exportFile.Write(decryptedData)
 	if err != nil {
-		return "", fmt.Errorf("failed to write to export file: %w", err)
+		log("failed to write to export file: %w", err)
+		return "", errExportFile
 	}
 
 	// Set appropriate file permissions
@@ -321,6 +341,7 @@ func ExportSingleFile(db *sql.DB, dbKey []byte, id int64, tvault *os.File, expor
 	return exportPath, nil
 }
 
+var errCreateZip = errors.New("error creating zip")
 // CreateZipFile creates a ZIP file containing the specified files
 func CreateZipFile(db *sql.DB, dbKey []byte, folderName string, files []FileInfo, tvault *os.File, exportDir string) (string, error) {
 	// Create unique ZIP filename
@@ -330,7 +351,8 @@ func CreateZipFile(db *sql.DB, dbKey []byte, folderName string, files []FileInfo
 	// Create ZIP file
 	zipFile, err := util.NarrowCreate(zipPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to create ZIP file: %w", err)
+		log("failed to create ZIP file: %w", err)
+		return "", errCreateZip
 	}
 	defer zipFile.Close()
 
@@ -355,24 +377,28 @@ func CreateZipFile(db *sql.DB, dbKey []byte, folderName string, files []FileInfo
 	return zipPath, nil
 }
 
+var errAddFileZip = errors.New("error adding file to zip")
 // AddFileToZip adds a single file to an existing ZIP writer
 func AddFileToZip(db *sql.DB, dbKey []byte, zipWriter *zip.Writer, file FileInfo, tvault *os.File) error {
 	decryptedData, fileName, err := decryptAndGetFilename(db, file.ID, dbKey, tvault)
 	if err != nil {
-		return err
+		log("error adding file to zip %v", err)
+		return errAddFileZip
 	}
 	defer util.SecureZeroMemory(decryptedData)
 
 	// Create file in ZIP
 	fileWriter, err := zipWriter.Create(fileName)
 	if err != nil {
-		return fmt.Errorf("failed to create file in ZIP: %w", err)
+		log("failed to create file in ZIP: %w", err)
+		return errAddFileZip
 	}
 
 	// Write decrypted data to ZIP entry
 	_, err = fileWriter.Write(decryptedData)
 	if err != nil {
-		return fmt.Errorf("failed to write file data to ZIP: %w", err)
+		log("failed to write file data to ZIP: %w", err)
+		return errAddFileZip
 	}
 
 	return nil
@@ -388,29 +414,34 @@ func RecordTempFile(db *sql.DB, fileID int64, tempPath string) error {
 	return err
 }
 
+var errOverwriteData = errors.New("error overwriting data")
 // Delete files
 func SecurelyOverwriteFileData(tvaultPath string, offset, length int64) error {
 	file, err := os.OpenFile(tvaultPath, os.O_WRONLY, util.USER_ONLY_FILE_PERMS)
 	if err != nil {
-		return fmt.Errorf("failed to open TVault for writing: %w", err)
+		log("failed to open TVault for writing: %v", err)
+		return errOverwriteData
 	}
 	defer file.Close()
 
 	// Generate random data to overwrite the file content
 	randomData := make([]byte, length)
 	if _, err := rand.Read(randomData); err != nil {
-		return fmt.Errorf("failed to generate random data: %w", err)
+		log("failed to generate random data: %v", err)
+		return errOverwriteData
 	}
 
 	// Overwrite the file data at the specified offset
 	_, err = file.WriteAt(randomData, offset)
 	if err != nil {
-		return fmt.Errorf("failed to overwrite file data: %w", err)
+		log("failed to overwrite file data: %v", err)
+		return errOverwriteData
 	}
 
 	// Force write to disk
 	if err := file.Sync(); err != nil {
-		return fmt.Errorf("failed to sync file changes: %w", err)
+		log("failed to sync file changes: %v", err)
+		return errOverwriteData
 	}
 
 	return nil
@@ -424,16 +455,19 @@ func AddFreeSpace(tx *sql.Tx, offset, length int64) error {
 	`, offset, length)
 
 	if err != nil {
-		return fmt.Errorf("failed to add free space record: %w", err)
+		log("failed to add free space record: %v", err)
+		return fmt.Errorf("failed to record free space")
 	}
 
 	return nil
 }
 
+var errGetFileMetadataDeletion = errors.New("error getting file metadata for deletion")
 // GetFileMetadataForDeletion retrieves file metadata needed for deletion
 func GetFileMetadataForDeletion(tx *sql.Tx, ids []int64) ([]FileMetadata, error) {
 	if len(ids) == 0 {
-		return nil, fmt.Errorf("no file IDs provided")
+		log("no file IDs provided")
+		return nil, errGetFileMetadataDeletion
 	}
 
 	metadataQuery := `

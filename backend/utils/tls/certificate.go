@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"bytes"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -37,11 +38,13 @@ type certificateFiles struct {
 	keyPath  string
 }
 
+var errGenerateConfig = errors.New("failed to generate tls config")
 // generates a TLS configuration with a self signed certificate
 func GenerateTLSConfig(ctx context.Context, config Config) (*tls.Config, error) {
 	cert, err := generateCertificate(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate certificate: %v", err)
+		log("failed to generate certificate: %v", err)
+		return nil, errGenerateConfig
 	}
 
 	//generate hash of certificate
@@ -88,7 +91,8 @@ func generateCertificate(config Config) (tls.Certificate, error) {
 func generatePrivateKey() (*rsa.PrivateKey, error) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate private key: %w", err)
+		log("failed to generate private key: %v", err)
+		return nil, fmt.Errorf("failed to generate private key")
 	}
 	return privateKey, nil
 }
@@ -97,7 +101,8 @@ func createCertificateTemplate(config Config) (*x509.Certificate, error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate serial number: %w", err)
+		log("failed to generate serial number: %v", err)
+		return nil, fmt.Errorf("error during certificate template")
 	}
 
 	return &x509.Certificate{
@@ -118,7 +123,8 @@ func createCertificateTemplate(config Config) (*x509.Certificate, error) {
 func createSignedCertificate(template *x509.Certificate, privateKey *rsa.PrivateKey) ([]byte, error) {
 	derBytes, err := x509.CreateCertificate(rand.Reader, template, template, &privateKey.PublicKey, privateKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create certificate: %w", err)
+		log("failed to create certificate: %v", err)
+		return nil, fmt.Errorf("failed to create certificate")
 	}
 	return derBytes, nil
 }
@@ -126,7 +132,8 @@ func createSignedCertificate(template *x509.Certificate, privateKey *rsa.Private
 func setupCertificateFiles(derBytes []byte, privateKey *rsa.PrivateKey) (*certificateFiles, error) {
 	certDir := getCertificateDirectory()
 	if err := os.MkdirAll(certDir, util.USER_ONLY_DIR_PERMS); err != nil {
-		return nil, fmt.Errorf("failed to create certificate directory: %w", err)
+		log("failed to create certificate directory: %v", err)
+		return nil, fmt.Errorf("failed to create certificate directory")
 	}
 
 	files := &certificateFiles{
@@ -145,15 +152,18 @@ func setupCertificateFiles(derBytes []byte, privateKey *rsa.PrivateKey) (*certif
 	return files, nil
 }
 
+var errWriteCert = errors.New("failed to create certificate file")
 func writeCertificateFile(path string, derBytes []byte) error {
 	certOut, err := util.NarrowCreate(path)
 	if err != nil {
-		return fmt.Errorf("failed to create certificate file: %w", err)
+		log("failed to create certificate file: %v", err)
+		return errWriteCert
 	}
 	defer certOut.Close()
 
 	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
-		return fmt.Errorf("failed to encode certificate: %w", err)
+		log("failed to encode certificate: %v", err)
+		return errWriteCert
 	}
 	return nil
 }
@@ -168,10 +178,12 @@ func EncodeCertAsPEM(derBytes []byte) ([]byte, error) {
 }
 
 
+var errWritePrivateKey = errors.New("failed to write private key")
 func writePrivateKeyFile(path string, privateKey *rsa.PrivateKey) error {
 	keyOut, err := util.NarrowCreate(path)
 	if err != nil {
-		return fmt.Errorf("failed to create key file: %w", err)
+		log("failed to create key file: %v", err)
+		return errWritePrivateKey
 	}
 	defer keyOut.Close()
 
@@ -179,7 +191,8 @@ func writePrivateKeyFile(path string, privateKey *rsa.PrivateKey) error {
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 	}); err != nil {
-		return fmt.Errorf("failed to encode private key: %w", err)
+		log("failed to encode private key: %v", err)
+		return errWritePrivateKey
 	}
 	return nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -35,19 +34,22 @@ func NewService(ctx context.Context) Service {
 	}
 }
 
+var initFailed = errors.New("initialization failed")
 func (s *service) Initialize(ctx context.Context) error {
 	s.ctx = ctx
 
 	// create directory if they don't exists
 	vaultDir := filepath.Dir(s.tvaultPath)
 	if err := os.MkdirAll(vaultDir, util.USER_ONLY_DIR_PERMS); err != nil {
-		return fmt.Errorf("failed to create vault directory: %w", err)
+		log("failed to create vault directory: %w", err)
+		return initFailed
 	}
 
 	// create tmp directory for decrypted files
 	tempDir := authutils.GetTempDir()
 	if err := os.MkdirAll(tempDir, util.USER_ONLY_DIR_PERMS); err != nil {
-		return fmt.Errorf("failed to create temp directory: %w", err)
+		log("failed to create temp directory: %w", err)
+		return initFailed
 	}
 
 	log("Auth service initialized")
@@ -60,6 +62,7 @@ func (s *service) IsFirstTimeSetup() bool {
 	return os.IsNotExist(err)
 }
 
+var errCreatePassword = errors.New("create password failed")
 func (s *service) CreatePassword(password string) error {
 	if len(password) < constants.PasswordMinLength {
 		return constants.ErrPasswordTooShort
@@ -73,13 +76,15 @@ func (s *service) CreatePassword(password string) error {
 	//generate random database key | TODO: move this outside of this function
 	dbKey := make([]byte, constants.KeyLength)
 	if _, err := rand.Read(dbKey); err != nil {
-		return fmt.Errorf("failed to generate database key: %w", err)
+		log("failed to generate database key: %w", err)
+		return errCreatePassword
 	}
 
 	//generate random salt
 	salt := make([]byte, constants.SaltLength)
 	if _, err := rand.Read(salt); err != nil {
-		return fmt.Errorf("failed to generate salt: %w", err)
+		log("failed to generate salt: %w", err)
+		return errCreatePassword
 	}
 
 	config := argon2.MemoryConstrainedDefaults()
@@ -87,16 +92,19 @@ func (s *service) CreatePassword(password string) error {
 	raw, err := config.HashRaw([]byte(password))
 	defer argon2.SecureZeroMemory(raw.Hash)
 	if err != nil {
-		return fmt.Errorf("failed to hash password: %w", err)
+		log("failed to hash password: %w", err)
+		return errCreatePassword
 	}
 
 	encryptedDBKey, err := authutils.EncryptData(dbKey, raw.Hash)
 	if err != nil {
-		return fmt.Errorf("failed to encrypt database key: %w", err)
+		log("failed to encrypt database key: %w", err)
+		return errCreatePassword
 	}
 
 	if err := authutils.InitializeTVaultHeader(raw.Salt, encryptedDBKey); err != nil {
-		return fmt.Errorf("failed to initialize tvault header: %w", err)
+		log("failed to initialize tvault header: %w", err)
+		return errCreatePassword
 	}
 
 	// Store database key in memory
@@ -107,6 +115,7 @@ func (s *service) CreatePassword(password string) error {
 	return nil
 }
 
+var errDecryptDatabase = errors.New("failed to decrypt database")
 func (s *service) DecryptDatabaseKey(password string) error {
 	log("Verifying password")
 
@@ -117,7 +126,8 @@ func (s *service) DecryptDatabaseKey(password string) error {
 
 	salt, encryptedDBKey, err := authutils.ReadTVaultHeader()
 	if err != nil {
-		return err
+		log("error reading tvault header %v", err)
+		return errDecryptDatabase
 	}
 
 	config := argon2.MemoryConstrainedDefaults()
@@ -125,7 +135,8 @@ func (s *service) DecryptDatabaseKey(password string) error {
 	raw, err := config.Hash([]byte(password), salt)
 	defer argon2.SecureZeroMemory(raw.Hash)
 	if err != nil {
-		return fmt.Errorf("failed to derive key: %w", err)
+		log("failed to derive key: %w", err)
+		return errDecryptDatabase
 	}
 
 	dbKey, err := authutils.DecryptData(encryptedDBKey, raw.Hash)

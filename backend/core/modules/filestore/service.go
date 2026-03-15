@@ -8,6 +8,7 @@ import (
 	"Tella-Desktop/backend/utils/transferutils"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -36,12 +37,14 @@ func NewService(ctx context.Context, db *sql.DB, dbKey []byte) Service {
 	}
 }
 
+var errStoreFile = errors.New("failed to store file")
 // StoreFile encrypts and stores a file in TVault
 func (s *service) StoreFile(folderID, claimedSize int64, claimedHash string, fileName string, claimedMimeType string, reader io.Reader) (*FileMetadata, error) {
 	// Begin Transaction
 	tx, err := s.db.Begin()
 	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+		log("failed to begin transaction: %w", err)
+		return nil, errStoreFile
 	}
 	defer tx.Rollback()
 
@@ -58,6 +61,7 @@ func (s *service) StoreFile(folderID, claimedSize int64, claimedHash string, fil
 	fileData, err := io.ReadAll(reader)
 	log("filestore err?", fileName, err)
 	if err != nil {
+		// need to return "%w" here so we can unwrap it in package transfer
 		return nil, fmt.Errorf("failed to read file data: %w", err)
 	}
 
@@ -76,14 +80,16 @@ func (s *service) StoreFile(folderID, claimedSize int64, claimedHash string, fil
 	originalSize := int64(len(fileData))
 	log("filestore", fileName, "read size", originalSize)
 	if originalSize != claimedSize {
-		return nil, fmt.Errorf("file %q: downloaded size (%d) did not match claimed size (%d) from prepareUpload (difference: %d)", fileName, originalSize, claimedSize, originalSize-claimedSize)
+		log("file %q: downloaded size (%d) did not match claimed size (%d) from prepareUpload (difference: %d)", fileName, originalSize, claimedSize, originalSize-claimedSize)
+		return nil, errStoreFile
 	}
 	fileKey := filestoreutils.GenerateFileKey(fileUUID, s.dbKey)
 
 	// TODO cblgh(2026-02-12): to overwrite fileData with encryptedData, do fileData[:0] -- but will the capacity be sufficient?
 	encryptedData, err := authutils.EncryptData(fileData, fileKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt file: %w", err)
+		log("failed to encrypt file: %w", err)
+		return nil, errStoreFile
 	}
 	// at this point we have transformed fileData into encryptedData: erase fileData's contents.
 	util.SecureZeroMemory(fileData)
@@ -95,31 +101,36 @@ func (s *service) StoreFile(folderID, claimedSize int64, claimedHash string, fil
 	// Find space in TVault to store the file
 	offset, err := filestoreutils.FindSpace(tx, encryptedSize, s.tvaultPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find space in TVault: %w", err)
+		log("failed to find space in TVault: %w", err)
+		return nil, errStoreFile
 	}
 
 	// Open TVault file
 	tvault, err := os.OpenFile(s.tvaultPath, os.O_RDWR, util.USER_ONLY_FILE_PERMS)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open TVault: %w", err)
+		log("failed to open TVault: %w", err)
+		return nil, errStoreFile
 	}
 	defer tvault.Close()
 
 	// Write encrypted data to TVault
 	_, err = tvault.WriteAt(encryptedData, offset)
 	if err != nil {
-		return nil, fmt.Errorf("failed to write to TVault: %w", err)
+		log("failed to write to TVault: %w", err)
+		return nil, errStoreFile
 	}
 
 	// Insert file metadata into database
 	fileID, err := filestoreutils.InsertFileMetadata(tx, fileUUID, fileName, originalSize, claimedMimeType, folderID, offset, encryptedSize)
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert file metadata: %w", err)
+		log("failed to insert file metadata: %w", err)
+		return nil, errStoreFile
 	}
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		log("failed to commit transaction: %w", err)
+		return nil, errStoreFile
 	}
 
 	// Return metadata
@@ -139,6 +150,7 @@ func (s *service) StoreFile(folderID, claimedSize int64, claimedHash string, fil
 	return metadata, nil
 }
 
+var errGetFolders = errors.New("failed to get folders")
 func (s *service) GetStoredFolders() ([]FolderInfo, error) {
 	rows, err := s.db.Query(`
 		SELECT 
@@ -153,7 +165,8 @@ func (s *service) GetStoredFolders() ([]FolderInfo, error) {
 		ORDER BY f.created_at DESC
 	`)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query folders: %w", err)
+		log("failed to query folders: %w", err)
+		return nil, errGetFolders
 	}
 	defer rows.Close()
 
@@ -161,26 +174,31 @@ func (s *service) GetStoredFolders() ([]FolderInfo, error) {
 	for rows.Next() {
 		var folder FolderInfo
 		if err := rows.Scan(&folder.ID, &folder.Name, &folder.Timestamp, &folder.FileCount); err != nil {
-			return nil, fmt.Errorf("failed to scan folder: %w", err)
+			log("failed to scan folder: %w", err)
+			return nil, errGetFolders
 		}
 		folders = append(folders, folder)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating folders: %w", err)
+		log("error iterating folders: %w", err)
+		return nil, errGetFolders 
 	}
 
 	return folders, nil
 }
 
+var errGetFilesFolder = errors.New("failed to get files in folder")
 func (s *service) GetFilesInFolder(folderID int64) (*FilesInFolderResponse, error) {
 	var folderName string
 	err := s.db.QueryRow("SELECT name FROM folders WHERE id = ?", folderID).Scan(&folderName)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("folder not found with ID: %d", folderID)
+			log("folder not found with ID: %d", folderID)
+			return nil, errGetFilesFolder
 		}
-		return nil, fmt.Errorf("failed to get folder name: %w", err)
+		log("failed to get folder name: %w", err)
+		return nil, errGetFilesFolder
 	}
 
 	rows, err := s.db.Query(`
@@ -190,7 +208,8 @@ func (s *service) GetFilesInFolder(folderID int64) (*FilesInFolderResponse, erro
 		ORDER BY created_at DESC
 	`, folderID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query files in folder: %w", err)
+		log("failed to query files in folder: %w", err)
+		return nil, errGetFilesFolder
 	}
 	defer rows.Close()
 
@@ -198,13 +217,15 @@ func (s *service) GetFilesInFolder(folderID int64) (*FilesInFolderResponse, erro
 	for rows.Next() {
 		var file FileInfo
 		if err := rows.Scan(&file.ID, &file.Name, &file.MimeType, &file.Timestamp, &file.Size); err != nil {
-			return nil, fmt.Errorf("failed to scan file: %w", err)
+			log("failed to scan file: %w", err)
+			return nil, errGetFilesFolder
 		}
 		files = append(files, file)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating files: %w", err)
+		log("error iterating files: %w", err)
+		return nil, errGetFilesFolder
 	}
 
 	return &FilesInFolderResponse{
@@ -213,9 +234,11 @@ func (s *service) GetFilesInFolder(folderID int64) (*FilesInFolderResponse, erro
 	}, nil
 }
 
+var errExportFiles = errors.New("failed to export files")
 func (s *service) ExportFiles(ids []int64) ([]string, error) {
 	if len(ids) == 0 {
-		return nil, fmt.Errorf("no file IDs provided")
+		log("no file IDs provided")
+		return nil, errExportFiles
 	}
 
 	if len(ids) == 1 {
@@ -230,13 +253,15 @@ func (s *service) ExportFiles(ids []int64) ([]string, error) {
 	// Get export directory once
 	exportDir := authutils.GetExportDir()
 	if err := os.MkdirAll(exportDir, util.USER_ONLY_DIR_PERMS); err != nil {
-		return nil, fmt.Errorf("failed to create export dir: %w", err)
+		log("failed to create export dir: %w", err)
+		return nil, errExportFiles
 	}
 
 	// Open TVault once for all operations
 	tvault, err := os.Open(s.tvaultPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open TVault: %w", err)
+		log("failed to open TVault: %w", err)
+		return nil, errExportFiles
 	}
 	defer tvault.Close()
 
@@ -260,7 +285,8 @@ func (s *service) ExportFiles(ids []int64) ([]string, error) {
 	// Return results with error info if some files failed
 	if len(failedFiles) > 0 {
 		if len(exportedPaths) == 0 {
-			return nil, fmt.Errorf("all files failed to export: %v", failedFiles)
+			log("all files failed to export: %v", failedFiles)
+			return nil, errExportFiles
 		}
 		log("Warning: Some files failed to export: %v", failedFiles)
 	}
@@ -274,21 +300,25 @@ func (s *service) ExportFiles(ids []int64) ([]string, error) {
 	return exportedPaths, nil
 }
 
+var errExportZipFolders = errors.New("failed to export zip folders")
 func (s *service) ExportZipFolders(folderIDs []int64, selectedFileIDs []int64) ([]string, error) {
 	if len(folderIDs) == 0 {
-		return nil, fmt.Errorf("no folder IDs provided")
+		log("no folder IDs provided")
+		return nil, errExportZipFolders
 	}
 
 	var exportedPaths []string
 	exportDir := authutils.GetExportDir()
 	if err := os.MkdirAll(exportDir, util.USER_ONLY_DIR_PERMS); err != nil {
-		return nil, fmt.Errorf("failed to create export dir: %w", err)
+		log("failed to create export dir: %w", err)
+		return nil, errExportZipFolders
 	}
 
 	// Open TVault once for all operations
 	tvault, err := os.Open(s.tvaultPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open TVault: %w", err)
+		log("failed to open TVault: %w", err)
+		return nil, errExportZipFolders
 	}
 	defer tvault.Close()
 
@@ -348,33 +378,39 @@ func (s *service) ExportZipFolders(folderIDs []int64, selectedFileIDs []int64) (
 	}
 
 	if len(exportedPaths) == 0 {
-		return nil, fmt.Errorf("no ZIP files were created successfully")
+		log("no ZIP files were created successfully")
+		return nil, errExportZipFolders
 	}
 
 	log("ZIP export completed: %d ZIP files created", len(exportedPaths))
 	return exportedPaths, nil
 }
 
+var errDeleteFiles = errors.New("error when deleting files")
 func (s *service) DeleteFiles(ids []int64) error {
 	if len(ids) == 0 {
-		return fmt.Errorf("no file IDs provided for deletion")
+		log("no file IDs provided for deletion")
+		return errDeleteFiles
 	}
 
 	// Start transaction
 	tx, err := s.db.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		log("failed to begin transaction: %w", err)
+		return errDeleteFiles
 	}
 	defer tx.Rollback()
 
 	// Get file metadata for deletion
 	filesMetadata, err := filestoreutils.GetFileMetadataForDeletion(tx, ids)
 	if err != nil {
-		return fmt.Errorf("failed to get file metadata for deletion: %w", err)
+		log("failed to get file metadata for deletion: %w", err)
+		return errDeleteFiles
 	}
 
 	if len(filesMetadata) == 0 {
-		return fmt.Errorf("no files found for deletion")
+		log("no files found for deletion")
+		return errDeleteFiles
 	}
 
 	// Mark files as deleted in database and add to free spaces
@@ -386,19 +422,22 @@ func (s *service) DeleteFiles(ids []int64) error {
 		`, metadata.ID)
 
 		if err != nil {
-			return fmt.Errorf("failed to mark file %d as deleted: %w", metadata.ID, err)
+			log("failed to mark file %d as deleted: %w", metadata.ID, err)
+			return errDeleteFiles
 		}
 
 		// Add the file's space to free_spaces table
 		err = filestoreutils.AddFreeSpace(tx, metadata.Offset, metadata.Length)
 		if err != nil {
-			return fmt.Errorf("failed to add free space for file %d: %w", metadata.ID, err)
+			log("failed to add free space for file %d: %w", metadata.ID, err)
+			return errDeleteFiles
 		}
 	}
 
 	// Commit database transaction first
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit deletion transaction: %w", err)
+		log("failed to commit deletion transaction: %w", err)
+		return errDeleteFiles
 	}
 
 	// Now securely overwrite the file data in TVault
@@ -414,55 +453,63 @@ func (s *service) DeleteFiles(ids []int64) error {
 	return nil
 }
 
+var errDeleteFolders = errors.New("error when deleting folders")
 func (s *service) DeleteFolders(folderIDs []int64) error {
 	if len(folderIDs) == 0 {
-		return fmt.Errorf("no folder IDs provided for deletion")
+		log("no folder IDs provided for deletion")
+		return errDeleteFolders
 	}
 
 	// First, get all file IDs in the selected folders
 	fileIDs, err := s.getFileIDsInFolders(folderIDs)
 	if err != nil {
-		return fmt.Errorf("failed to get file IDs in folders: %w", err)
+		log("failed to get file IDs in folders: %w", err)
+		return errDeleteFolders
 	}
 
 	// Delete all files using the existing DeleteFiles method
 	if len(fileIDs) > 0 {
 		err = s.DeleteFiles(fileIDs)
 		if err != nil {
-			return fmt.Errorf("failed to delete files in folders: %w", err)
+			log("failed to delete files in folders: %w", err)
+			return errDeleteFolders
 		}
 	}
 
 	// Now delete the empty folders
 	tx, err := s.db.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		log("failed to begin transaction: %w", err)
+		return errDeleteFolders
 	}
 	defer tx.Rollback()
 
 	for _, folderID := range folderIDs {
 		_, err := tx.Exec("DELETE FROM folders WHERE id = ?", folderID)
 		if err != nil {
-			return fmt.Errorf("failed to delete folder %d: %w", folderID, err)
+			log("failed to delete folder %d: %w", folderID, err)
+			return errDeleteFolders
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit folder deletion: %w", err)
+		log("failed to commit folder deletion: %w", err)
+		return errDeleteFolders
 	}
 
 	return nil
 }
 
 // Helper method to get all file IDs in the specified folders
+var errGetFileIDsFolders = errors.New("error when getting files")
 func (s *service) getFileIDsInFolders(folderIDs []int64) ([]int64, error) {
 	if len(folderIDs) == 0 {
 		return nil, nil
 	}
 
 	filesInFolderQuery := `
-		SELECT id FROM files 
-		WHERE folder_id = ? AND is_deleted = 0
+	SELECT id FROM files 
+	WHERE folder_id = ? AND is_deleted = 0
 	`
 
 	// NOTE: we iteratively execute the static sql query to eliminate SQLi risk from dynamic query construction
@@ -474,20 +521,23 @@ func (s *service) getFileIDsInFolders(folderIDs []int64) ([]int64, error) {
 		rows, err := s.db.Query(filesInFolderQuery, folderID)
 		allRows[i] = rows
 		if err != nil {
-			return nil, fmt.Errorf("failed to query file IDs: %w", err)
+			log("failed to query file IDs: %w", err)
+			return nil, errGetFileIDsFolders
 		}
 		defer allRows[i].Close()
 
 		for allRows[i].Next() {
 			var fileID int64
 			if err := allRows[i].Scan(&fileID); err != nil {
-				return nil, fmt.Errorf("failed to scan file ID: %w", err)
+				log("failed to scan file ID: %w", err)
+				return nil, errGetFileIDsFolders
 			}
 			fileIDs = append(fileIDs, fileID)
 		}
 
 		if err := allRows[i].Err(); err != nil {
-			return nil, fmt.Errorf("error iterating file IDs: %w", err)
+			log("error iterating file IDs: %w", err)
+			return nil, errGetFileIDsFolders
 		}
 	}
 

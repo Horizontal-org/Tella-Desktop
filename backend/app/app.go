@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"errors"
 
 	"Tella-Desktop/backend/core/database"
 	"Tella-Desktop/backend/core/modules/auth"
@@ -97,16 +98,18 @@ func (a *App) Startup(ctx context.Context) {
 	a.nonceManager = nonces.NewNonceManager()
 }
 
+var errRegistrationNotInit = errors.New("registration handler not initialized")
+
 func (a *App) ConfirmRegistration() error {
 	if a.registrationHandler == nil {
-		return fmt.Errorf("registration handler not initialized")
+		return errRegistrationNotInit
 	}
 	return a.registrationHandler.ConfirmRegistration()
 }
 
 func (a *App) RejectRegistration() error {
 	if a.registrationHandler == nil {
-		return fmt.Errorf("registration handler not initialized")
+		return errRegistrationNotInit
 	}
 	return a.registrationHandler.RejectRegistration()
 }
@@ -218,53 +221,54 @@ func (a *App) GetLocalIPs() ([]string, error) {
 
 // Filestore functions
 
+var errFileServiceNotInit = errors.New("file service not initialized")
 func (a *App) GetStoredFolders() ([]filestore.FolderInfo, error) {
 	if a.fileService == nil {
-		return nil, fmt.Errorf("file service not initialized")
+		return nil, errFileServiceNotInit
 	}
 	return a.fileService.GetStoredFolders()
 }
 
 func (a *App) GetFilesInFolder(folderID int64) (*filestore.FilesInFolderResponse, error) {
 	if a.fileService == nil {
-		return nil, fmt.Errorf("file service not initialized")
+		return nil, errFileServiceNotInit
 	}
 	return a.fileService.GetFilesInFolder(folderID)
 }
 
 func (a *App) ExportFiles(ids []int64) ([]string, error) {
 	if a.fileService == nil {
-		return nil, fmt.Errorf("file service not initialized")
+		return nil, errFileServiceNotInit
 	}
 	return a.fileService.ExportFiles(ids)
 }
 
 func (a *App) ExportZipFolders(folderIDs []int64, selectedFileIDs []int64) ([]string, error) {
 	if a.fileService == nil {
-		return nil, fmt.Errorf("file service not initialized")
+		return nil, errFileServiceNotInit
 	}
 	return a.fileService.ExportZipFolders(folderIDs, selectedFileIDs)
 }
 
 func (a *App) DeleteFiles(ids []int64) error {
 	if a.fileService == nil {
-		runtime.LogError(a.ctx, "file service not initialized")
-		return fmt.Errorf("file service not initialized")
+		log("file service not initialized")
+		return errFileServiceNotInit
 	}
 
 	err := a.fileService.DeleteFiles(ids)
 	if err != nil {
-		runtime.LogError(a.ctx, fmt.Sprintf("DeleteFiles failed: %v", err))
+		log("DeleteFiles failed: %v", err)
 		return err
 	}
 
-	runtime.LogInfo(a.ctx, "DeleteFiles completed successfully")
+	log("DeleteFiles completed successfully")
 	return nil
 }
 
 func (a *App) DeleteFolders(folderIDs []int64) error {
 	if a.fileService == nil {
-		return fmt.Errorf("file service not initialized")
+		return errFileServiceNotInit
 	}
 	return a.fileService.DeleteFolders(folderIDs)
 }

@@ -109,12 +109,14 @@ func (ware *RateLimitingWare) Handler(next http.Handler) http.Handler {
 
 // TODO cblgh(2026-03-13): revamp backend to be stateful like frontend
 // <zero state> -> [ping] -> [register] -> [prepare-upload] -> [upload] -> [close-connection] -> <end>
+var errStart = errors.New("start error")
 func (s *service) Start(port int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.running {
-		return fmt.Errorf("server is already running")
+		log("server is already running")
+		return errStart
 	}
 
 	// Generate new PIN for each start
@@ -123,7 +125,8 @@ func (s *service) Start(port int) error {
 
 	ipStrings, err := network.GetLocalIPs()
 	if err != nil {
-		return fmt.Errorf("failed to get local IPs: %v", err)
+		log("failed to get local IPs: %v", err)
+		return errStart
 	}
 
 	// Parse strings ip into net.IP
@@ -140,7 +143,8 @@ func (s *service) Start(port int) error {
 		IPAddresses:  ips,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to generate TLS config: %v", err)
+		log("failed to generate TLS config: %v", err)
+		return errStart
 	}
 	// do not require any client certs when server is freshly started
 	tlsConfig.ClientAuth = ctls.NoClientCert 
@@ -148,7 +152,6 @@ func (s *service) Start(port int) error {
 	// to allow use of tls.Config.ClientAuth: tls.RequireAndVerifyClientCert
 	// c.f https://stackoverflow.com/a/63317898
 	tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-		fmt.Println("verify peer cert called")
 		encodedCert, err := tls.EncodeCertAsPEM(rawCerts[0])
 		if err != nil {
 			return err
@@ -236,7 +239,7 @@ func (s *service) PinFingerprint(fingerprint string) error {
 	if err := s.server.Shutdown(shutdownCtx); err != nil {
 		log("Graceful shutdown failed: %v, forcing close\n", err)
 	}
-	fmt.Println("stopped server & restarting")
+	log("stopped server & restarting")
 	// change the tls config to require client certs on connection going forward.
 	// we use `tls.RequireAnyClientCert` as we do not have the full client cert
 	// => can't create and pass a cert pool that will allow tls.VerifyCertificate to succeed

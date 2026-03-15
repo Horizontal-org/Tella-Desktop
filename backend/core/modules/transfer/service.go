@@ -70,6 +70,8 @@ func NewService(ctx context.Context, fileSerservice filestore.Service, db *sql.D
 	}
 }
 
+// generic error
+var errPrepareUpload = errors.New("error during prepare upload")
 func (s *service) PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadResponse, error) {
 	pendingTransfer := &PendingTransfer{
 		SessionID:    request.SessionID,
@@ -82,7 +84,8 @@ func (s *service) PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadRe
 
 	_, exists := s.pendingTransfers.Load(request.SessionID)
 	if exists {
-		return nil, fmt.Errorf("pending transfer already exists for session: %s", request.SessionID)
+		log("pending transfer already exists for session: %s", request.SessionID)
+		return nil, errPrepareUpload
 	}
 
 	// correctly checks that the sessionID from the registration is the same as the sessionID arriving in our prepare-upload request
@@ -122,13 +125,16 @@ func (s *service) PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadRe
 		return response, nil
 	case err := <-pendingTransfer.ErrorChan:
 		s.pendingTransfers.Delete(request.SessionID)
-		return nil, err
+		log("%v", err)
+		return nil, errPrepareUpload
 	case <-s.done:
 		s.pendingTransfers.Delete(request.SessionID)
-		return nil, fmt.Errorf("request timeout - connection was closed by recipient")
+		log("request timeout - connection was closed by recipient")
+		return nil, errPrepareUpload
 	case <-time.After(5 * time.Minute):
 		s.pendingTransfers.Delete(request.SessionID)
-		return nil, fmt.Errorf("request timeout - no response from recipient")
+		log("request timeout - no response from recipient")
+		return nil, errPrepareUpload
 	}
 }
 
@@ -136,20 +142,24 @@ func (s *service) GetMaxFileSizeLimit() int64 {
 	return s.config.MaxFileSizeBytes
 }
 
+var errAccept = errors.New("error accepting transfer")
 func (s *service) AcceptTransfer(sessionID string) error {
 	value, exists := s.pendingTransfers.Load(sessionID)
 	if !exists {
-		return fmt.Errorf("no pending transfer found for session: %s", sessionID)
+		log("no pending transfer found for session: %s", sessionID)
+		return errAccept
 	}
 
 	pendingTransfer, ok := value.(*PendingTransfer)
 	if !ok {
-		return fmt.Errorf("invalid pending transfer data")
+		log("invalid pending transfer data")
+		return errAccept
 	}
 
 	folderID, err := s.createTransferFolder(pendingTransfer.Title)
 	if err != nil {
-		return fmt.Errorf("failed to create transfer folder: %w", err)
+		log("failed to create transfer folder: %w", err)
+		return errAccept
 	}
 
 	var fileIDs []string
@@ -215,27 +225,32 @@ func (s *service) AcceptTransfer(sessionID string) error {
 		log("Transfer accepted for session: %s", sessionID)
 		return nil
 	default:
-		return fmt.Errorf("failed to send acceptance response")
+		fmt.Errorf("failed to send acceptance response")
+		return errAccept
 	}
 }
 
+var errReject = errors.New("error rejecting transfer")
 func (s *service) RejectTransfer(sessionID string) error {
 	value, exists := s.pendingTransfers.Load(sessionID)
 	if !exists {
-		return fmt.Errorf("no pending transfer found for session: %s", sessionID)
+		log("no pending transfer found for session: %s", sessionID)
+		return errReject
 	}
 
 	pendingTransfer, ok := value.(*PendingTransfer)
 	if !ok {
-		return fmt.Errorf("invalid pending transfer data")
+		log("invalid pending transfer data")
+		return errReject
 	}
 
 	select {
-	case pendingTransfer.ErrorChan <- fmt.Errorf("transfer rejected by recipient"):
+	case pendingTransfer.ErrorChan <- errReject:
 		log("Transfer rejected for session: %s", sessionID)
 		return nil
 	default:
-		return fmt.Errorf("failed to send rejection response")
+		log("failed to send rejection response")
+		return errReject
 	}
 }
 
@@ -388,7 +403,8 @@ resolveLoop:
 		if errors.Is(err, transferutils.ErrTransferHashMismatch) {
 			return transferutils.ErrTransferHashMismatch
 		}
-		return fmt.Errorf("failed to store file: %w", err)
+		log("failed to store file: %w", err)
+		return fmt.Errorf("failed to store file")
 	}
 
 	runtime.EventsEmit(s.ctx, "file-received", map[string]interface{}{
@@ -447,10 +463,12 @@ func (s *service) calculateTotalSize(files []FileInfo) int64 {
 	return total
 }
 
+var errCreateFolder = errors.New("failed to create transfer folder")
 func (s *service) createTransferFolder(title string) (int64, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
-		return 0, fmt.Errorf("failed to begin transaction: %w", err)
+		log("failed to begin transaction: %w", err)
+		return 0, errCreateFolder
 	}
 	defer tx.Rollback()
 
@@ -460,16 +478,19 @@ func (s *service) createTransferFolder(title string) (int64, error) {
 		VALUES (?, NULL, datetime('now'), datetime('now'))
 	`, title)
 	if err != nil {
-		return 0, fmt.Errorf("failed to create folder: %w", err)
+		log("failed to create folder: %w", err)
+		return 0, errCreateFolder
 	}
 
 	folderID, err := result.LastInsertId()
 	if err != nil {
-		return 0, fmt.Errorf("failed to get folder ID: %w", err)
+		log("failed to get folder ID: %w", err)
+		return 0, errCreateFolder
 	}
 
 	if err := tx.Commit(); err != nil {
-		return 0, fmt.Errorf("failed to commit transaction: %w", err)
+		log("failed to commit transaction: %w", err)
+		return 0, errCreateFolder
 	}
 
 	log("Created transfer folder '%s' with ID: %d", title, folderID)
