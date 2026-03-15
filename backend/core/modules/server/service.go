@@ -174,7 +174,7 @@ func (s *service) Start(port int) error {
 	// }()
 
 	handler := NewHandler(mux, s.registrationHandler, transferHandler)
-	handler.SetupRoutes()
+	handler.SetupRoutes(s.PinFingerprint)
 
 	s.limitingMiddleware = s.limiter.Handler(mux)
 	s.port = port
@@ -183,12 +183,6 @@ func (s *service) Start(port int) error {
 	if err != nil {
 		return err
 	}
-
-	go func() {
-		time.Sleep(5000 * time.Millisecond)
-		fakePinnedHash := "3d02d6d70209c6f13a43e041bec8614db75d78a8a5532de364a91784a1d61aa4"
-		s.PinFingerprint(fakePinnedHash)
-	}()
 
 	fmt.Printf("HTTPS Server started on port %d with PIN %s\n", port, s.pin)
 	return nil
@@ -234,14 +228,15 @@ func (s *service) PinFingerprint(fingerprint string) error {
 	}
 	s.fingerprint = fingerprint
 	// terminate the previous instance
-	shutdownCtx, cancel := context.WithTimeout(s.ctx, 750*time.Millisecond)
+	shutdownCtx, cancel := context.WithTimeout(s.ctx, 1500*time.Millisecond)
 	defer cancel()
 	if err := s.server.Shutdown(shutdownCtx); err != nil {
 		fmt.Printf("Graceful shutdown failed: %v, forcing close\n", err)
 	}
 	fmt.Println("stopped server & restarting")
-	// require client certs on connection going forward.
-	// use tls.RequireAnyClientCert as we do not have the full client cert => can't create and pass a cert pool that will allow tls.VerifyCertificate to succeed
+	// change the tls config to require client certs on connection going forward.
+	// we use `tls.RequireAnyClientCert` as we do not have the full client cert
+	// => can't create and pass a cert pool that will allow tls.VerifyCertificate to succeed
 	s.tlsConfig.ClientAuth = ctls.RequireAnyClientCert
 	// NOTE cblgh(2026-03-15): we need to allocate a new instance of http.Server and set the updated TLS config on it
 	// before restarting the server for the config changes to take effect

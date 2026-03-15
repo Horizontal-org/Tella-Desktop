@@ -58,7 +58,8 @@ func (h *Handler) HandlePing(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
+// rememberClientFingerprint changes tls config of package server. this change also restarts the https server instance.
+func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, rememberClientFingerprint func (string) error) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -75,6 +76,7 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		PIN   string `json:"pin"`
 		Nonce string `json:"nonce"`
+		SenderCertificateHash string `json:"senderCertificateHash"`
 	}
 
 	if err := json.Unmarshal(requestBody, &request); err != nil {
@@ -83,7 +85,7 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if request.PIN == "" || request.Nonce == "" {
+	if request.PIN == "" || request.Nonce == "" || len(request.SenderCertificateHash) != 64 {
 		http.Error(w, "Missing required parameters", http.StatusBadRequest)
 		return
 	}
@@ -113,6 +115,19 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 		h.mu.Lock()
 		h.pendingRegistration = nil
+		// if we're sending a successful response it was because the pin was valid!
+		// since PIN was valid, we can now save the sender's certificate hash and restart the server
+		// note: since `rememberClientFingerprint` requires a restart of the https server, we likely have to send the
+		// response before restarting?
+		err = rememberClientFingerprint(request.SenderCertificateHash)
+		// TODO cblgh(2026-03-15): figure out something less catastrophic for the app than just panic here. but https
+		// handler is a hard place to recover from the death of the https server ^^'
+		//
+		// maybe emit some kind of event to frontend to signal catastrophic failure && need to restart?
+		// runtime.EventsEmit(h.ctx, "register-request-received", map[string]interface{}{
+		if err != nil {
+			panic(err)
+		}
 		h.mu.Unlock()
 
 	case err := <-h.pendingRegistration.Error:
