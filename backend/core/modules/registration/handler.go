@@ -9,8 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"Tella-Desktop/backend/utils/devlog"
+
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+var log = devlog.Logger("registration")
 
 type PendingRegistration struct {
 	PIN      string
@@ -71,7 +75,7 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, remembe
 		return
 	}
 
-	fmt.Printf("Raw registration request body: %s\n", string(requestBody))
+	log("Raw registration request body: %s\n", string(requestBody))
 
 	var request struct {
 		PIN   string `json:"pin"`
@@ -80,7 +84,7 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, remembe
 	}
 
 	if err := json.Unmarshal(requestBody, &request); err != nil {
-		fmt.Printf("Error decoding request: %v\n", err)
+		log("Error decoding request: %v\n", err)
 		http.Error(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}

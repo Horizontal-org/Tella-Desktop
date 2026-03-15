@@ -11,10 +11,12 @@ import (
 	"Tella-Desktop/backend/utils/authutils"
 	"Tella-Desktop/backend/utils/constants"
 	util "Tella-Desktop/backend/utils/genericutil"
+	"Tella-Desktop/backend/utils/devlog"
 
 	"github.com/matthewhartstonge/argon2"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+var log = devlog.Logger("auth")
 
 type service struct {
 	ctx          context.Context
@@ -48,7 +50,7 @@ func (s *service) Initialize(ctx context.Context) error {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
 
-	runtime.LogInfo(ctx, "Auth service initialized")
+	log("Auth service initialized")
 	return nil
 }
 
@@ -101,12 +103,12 @@ func (s *service) CreatePassword(password string) error {
 	s.databaseKey = dbKey
 	s.isUnlocked = true
 
-	runtime.LogInfo(s.ctx, "Password created successfully")
+	log("Password created successfully")
 	return nil
 }
 
 func (s *service) DecryptDatabaseKey(password string) error {
-	runtime.LogInfo(s.ctx, "Verifying password")
+	log("Verifying password")
 
 	// basic input invalidation to prevent attacks that overflow memory somehow
 	if len(password) > constants.PasswordMaxLength {
@@ -128,14 +130,14 @@ func (s *service) DecryptDatabaseKey(password string) error {
 
 	dbKey, err := authutils.DecryptData(encryptedDBKey, raw.Hash)
 	if err != nil {
-		runtime.LogInfo(s.ctx, "Invalid password")
+		log("Invalid password")
 		return constants.ErrInvalidPassword
 	}
 
 	s.databaseKey = dbKey
 	s.isUnlocked = true
 
-	runtime.LogInfo(s.ctx, "Password verified successfully")
+	log("Password verified successfully")
 	return nil
 }
 
@@ -156,5 +158,5 @@ func (s *service) ClearSession() {
 		s.databaseKey = nil
 	}
 	s.isUnlocked = false
-	runtime.LogInfo(s.ctx, "Session cleared")
+	log("Session cleared")
 }

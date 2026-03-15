@@ -3,6 +3,7 @@ package filestoreutils
 import (
 	"Tella-Desktop/backend/utils/authutils"
 	util "Tella-Desktop/backend/utils/genericutil"
+	"Tella-Desktop/backend/utils/devlog"
 	"archive/zip"
 	"crypto/rand"
 	"crypto/sha256"
@@ -15,6 +16,8 @@ import (
 
 	"github.com/gabriel-vasile/mimetype"
 )
+
+var log = devlog.Logger("filestoreutils")
 
 // insertFileMetadata adds file metadata to the database
 func InsertFileMetadata(
@@ -312,7 +315,7 @@ func ExportSingleFile(db *sql.DB, dbKey []byte, id int64, tvault *os.File, expor
 	// Set appropriate file permissions
 	err = os.Chmod(exportPath, util.USER_ONLY_FILE_PERMS)
 	if err != nil {
-		fmt.Printf("Failed to set file permissions for %s: %v", exportPath, err)
+		log("Failed to set file permissions for %s: %v", exportPath, err)
 	}
 
 	return exportPath, nil
@@ -339,14 +342,14 @@ func CreateZipFile(db *sql.DB, dbKey []byte, folderName string, files []FileInfo
 	for _, file := range files {
 		err := AddFileToZip(db, dbKey, zipWriter, file, tvault)
 		if err != nil {
-			fmt.Printf("Failed to add file '%s' to ZIP: %v", file.Name, err)
+			log("Failed to add file '%s' to ZIP: %v", file.Name, err)
 			continue // Continue with other files
 		}
 	}
 
 	// Set appropriate file permissions
 	if err := os.Chmod(zipPath, util.USER_ONLY_FILE_PERMS); err != nil {
-		fmt.Printf("Failed to set ZIP file permissions: %v", err)
+		log("Failed to set ZIP file permissions: %v", err)
 	}
 
 	return zipPath, nil
@@ -458,9 +461,9 @@ func GetFileMetadataForDeletion(tx *sql.Tx, ids []int64) ([]FileMetadata, error)
 		// would be bad and risk disabling the program if a file is malformed / returns an error
 		switch {
 		case err == sql.ErrNoRows:
-			fmt.Printf("no file with id %d\n", fileID)
+			log("no file with id %d\n", fileID)
 		case err != nil:
-			fmt.Printf("failed to query file metadata: %v", err)
+			log("failed to query file metadata: %v", err)
 		}
 
 		// Parse timestamp - try RFC3339 first, then fallback to SQLite format

@@ -24,7 +24,10 @@ import (
 	"Tella-Desktop/backend/utils/network"
 	"Tella-Desktop/backend/utils/nonces"
 	"Tella-Desktop/backend/utils/tls"
+	"Tella-Desktop/backend/utils/devlog"
 )
+
+var log = devlog.Logger("server")
 
 type service struct {
 	fingerprint				  string
@@ -151,7 +154,7 @@ func (s *service) Start(port int) error {
 			return err
 		}
 		calculatedPEMHash := sha256.Sum256(encodedCert)
-		fmt.Printf("incoming cert hash\n%x\n", calculatedPEMHash)
+		log("incoming cert hash\n%x\n", calculatedPEMHash)
 		if fmt.Sprintf("%x", calculatedPEMHash) != s.fingerprint {
 			return errors.New("pin did not match")
 		}
@@ -184,7 +187,7 @@ func (s *service) Start(port int) error {
 		return err
 	}
 
-	fmt.Printf("HTTPS Server started on port %d with PIN %s\n", port, s.pin)
+	log("HTTPS Server started on port %d with PIN %s\n", port, s.pin)
 	return nil
 }
 
@@ -231,7 +234,7 @@ func (s *service) PinFingerprint(fingerprint string) error {
 	shutdownCtx, cancel := context.WithTimeout(s.ctx, 1500*time.Millisecond)
 	defer cancel()
 	if err := s.server.Shutdown(shutdownCtx); err != nil {
-		fmt.Printf("Graceful shutdown failed: %v, forcing close\n", err)
+		log("Graceful shutdown failed: %v, forcing close\n", err)
 	}
 	fmt.Println("stopped server & restarting")
 	// change the tls config to require client certs on connection going forward.
@@ -251,13 +254,13 @@ func (s *service) Stop(ctx context.Context) error {
 		return nil
 	}
 
-	fmt.Printf("Stopping HTTPS Server...\n")
+	log("Stopping HTTPS Server...\n")
 
 	shutdownCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	if err := s.server.Shutdown(shutdownCtx); err != nil {
-		fmt.Printf("Graceful shutdown failed: %v, forcing close\n", err)
+		log("Graceful shutdown failed: %v, forcing close\n", err)
 	}
 
 	s.running = false
@@ -266,7 +269,7 @@ func (s *service) Stop(ctx context.Context) error {
 	s.limitingMiddleware = nil
 	s.fingerprint = ""
 
-	fmt.Printf("HTTPS Server stopped\n")
+	log("HTTPS Server stopped\n")
 
 	// Add delay to ensure port is fully released
 	time.Sleep(1 * time.Second)

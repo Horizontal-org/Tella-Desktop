@@ -4,11 +4,13 @@ import (
 	"Tella-Desktop/backend/core/modules/filestore"
 	"Tella-Desktop/backend/utils/nonces"
 	"Tella-Desktop/backend/utils/transferutils"
+	"Tella-Desktop/backend/utils/devlog"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 )
+
+var log = devlog.Logger("transfer")
 
 type Handler struct {
 	nonceManager  *nonces.NonceManager
@@ -40,27 +42,27 @@ func (h *Handler) HandleCloseConnection(w http.ResponseWriter, r *http.Request) 
 
 	var info closeInfo
 	if err := json.NewDecoder(r.Body).Decode(&info); err != nil {
-		fmt.Printf("Failed to decode close connection request: %s\n", err.Error())
+		log("Failed to decode close connection request: %s\n", err.Error())
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
 	if info.SessionID == "" {
-		fmt.Printf("Close connection request did not contain sessionID")
+		log("Close connection request did not contain sessionID")
 		http.Error(w, "No sessionID", http.StatusBadRequest)
 		return
 	}
 
 	err := h.service.CloseConnection(info.SessionID)
 	if err != nil {
-		fmt.Printf("Failure for close-connection: %s\n", err.Error())
+		log("Failure for close-connection: %s\n", err.Error())
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]bool{"success": true}); err != nil {
-		fmt.Printf("Failed to encode response: %s\n", err.Error())
+		log("Failed to encode response: %s\n", err.Error())
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -75,14 +77,14 @@ func (h *Handler) HandlePrepare(w http.ResponseWriter, r *http.Request) {
 
 	var request PrepareUploadRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		fmt.Printf("Failed to decode prepare upload request: %s\n", err.Error())
+		log("Failed to decode prepare upload request: %s\n", err.Error())
 		http.Error(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
 
 	// TODO cblgh(2026-03-09): improve prepare-upload request validation logic
 	if err := request.Validate(); err != nil {
-		fmt.Printf("Invalid request format: %s\n", err.Error())
+		log("Invalid request format: %s\n", err.Error())
 		http.Error(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
@@ -105,14 +107,14 @@ func (h *Handler) HandlePrepare(w http.ResponseWriter, r *http.Request) {
 			httpErrCode = http.StatusUnauthorized
 			errMessage = "Invalid session ID"
 		}
-		fmt.Printf("%s: %s\n", errMessage, err.Error())
+		log("%s: %s\n", errMessage, err.Error())
 		http.Error(w, errMessage, httpErrCode)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		fmt.Printf("Failed to encode response: %s\n", err.Error())
+		log("Failed to encode response: %s\n", err.Error())
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -140,7 +142,7 @@ func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 
 	transfer, err := h.service.GetTransfer(fileID)
 	if err != nil {
-		fmt.Printf("Transfer not found for fileID: %s\n", fileID)
+		log("Transfer not found for fileID: %s\n", fileID)
 		http.Error(w, "Transfer not found", http.StatusNotFound)
 		return
 	}
@@ -154,7 +156,7 @@ func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 	fileName := transfer.FileInfo.FileName
 	mimeType := transfer.FileInfo.FileType
 
-	fmt.Printf("Receiving file: %s (type: %s)\n", fileName, mimeType)
+	log("Receiving file: %s (type: %s)\n", fileName, mimeType)
 
 	// limit reading from body to at most config.MaxFileSyzeBites
 	limitedBody := http.MaxBytesReader(w, r.Body, h.service.GetMaxFileSizeLimit())
@@ -186,7 +188,7 @@ func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		case transferutils.ErrTransferHashMismatch:
 			http.Error(w, "File hash mismatch", http.StatusNotAcceptable)
 		default:
-			fmt.Printf("\nUpload failed: %s\n", err.Error())
+			log("Upload failed: %s\n", err.Error())
 			http.Error(w, "Failed to store file", http.StatusInternalServerError)
 		}
 		return

@@ -4,6 +4,7 @@ import (
 	"Tella-Desktop/backend/utils/authutils"
 	"Tella-Desktop/backend/utils/filestoreutils"
 	util "Tella-Desktop/backend/utils/genericutil"
+	"Tella-Desktop/backend/utils/devlog"
 	"Tella-Desktop/backend/utils/transferutils"
 	"context"
 	"database/sql"
@@ -16,6 +17,8 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
 )
+
+var log = devlog.Logger("filestore")
 
 type service struct {
 	ctx        context.Context
@@ -53,7 +56,7 @@ func (s *service) StoreFile(folderID, claimedSize int64, claimedHash string, fil
 	//
 	// as a piece of debugging information, it happens after ~150MB is sent.
 	fileData, err := io.ReadAll(reader)
-	fmt.Println("filestore err?", fileName, err)
+	log("filestore err?", fileName, err)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file data: %w", err)
 	}
@@ -67,11 +70,11 @@ func (s *service) StoreFile(folderID, claimedSize int64, claimedHash string, fil
 	inferredMIME := mimetype.Detect(fileData)
 	// TODO cblgh(2026-03-13): decide how to handle mimetype mismatch
 	if inferredMIME != nil && !inferredMIME.Is("application/octet-stream") && !inferredMIME.Is(claimedMimeType) {
-		fmt.Println("MISMATCH DETECTED: claimed mimetype does not match mimetype based on file data")
+		log("MISMATCH DETECTED: claimed mimetype does not match mimetype based on file data")
 	}
 
 	originalSize := int64(len(fileData))
-	fmt.Println("filestore", fileName, "read size", originalSize)
+	log("filestore", fileName, "read size", originalSize)
 	if originalSize != claimedSize {
 		return nil, fmt.Errorf("file %q: downloaded size (%d) did not match claimed size (%d) from prepareUpload (difference: %d)", fileName, originalSize, claimedSize, originalSize-claimedSize)
 	}
@@ -132,7 +135,7 @@ func (s *service) StoreFile(folderID, claimedSize int64, claimedHash string, fil
 		CreatedAt: time.Now(),
 	}
 
-	fmt.Printf("Stored file %s (%s) at offset %d with size (encrypted) %d\n", fileName, fileUUID, offset, encryptedSize)
+	log("Stored file %s (%s) at offset %d with size (encrypted) %d\n", fileName, fileUUID, offset, encryptedSize)
 	return metadata, nil
 }
 
@@ -216,9 +219,9 @@ func (s *service) ExportFiles(ids []int64) ([]string, error) {
 	}
 
 	if len(ids) == 1 {
-		fmt.Printf("Exporting single file with ID: %d", ids[0])
+		log("Exporting single file with ID: %d", ids[0])
 	} else {
-		fmt.Printf("Exporting %d files in batch", len(ids))
+		log("Exporting %d files in batch", len(ids))
 	}
 
 	var exportedPaths []string
@@ -241,16 +244,16 @@ func (s *service) ExportFiles(ids []int64) ([]string, error) {
 		// Export each file individually
 		exportPath, err := filestoreutils.ExportSingleFile(s.db, s.dbKey, id, tvault, exportDir)
 		if err != nil {
-			fmt.Printf("Failed to export file ID %d: %v", id, err)
+			log("Failed to export file ID %d: %v", id, err)
 			failedFiles = append(failedFiles, fmt.Sprintf("ID %d", id))
 			continue
 		}
 
 		exportedPaths = append(exportedPaths, exportPath)
 		if len(ids) == 1 {
-			fmt.Printf("File exported successfully to: %s", exportPath)
+			log("File exported successfully to: %s", exportPath)
 		} else {
-			fmt.Printf("File ID %d exported successfully to: %s", id, exportPath)
+			log("File ID %d exported successfully to: %s", id, exportPath)
 		}
 	}
 
@@ -259,13 +262,13 @@ func (s *service) ExportFiles(ids []int64) ([]string, error) {
 		if len(exportedPaths) == 0 {
 			return nil, fmt.Errorf("all files failed to export: %v", failedFiles)
 		}
-		fmt.Printf("Warning: Some files failed to export: %v", failedFiles)
+		log("Warning: Some files failed to export: %v", failedFiles)
 	}
 
 	if len(ids) == 1 {
-		fmt.Printf("Export completed successfully")
+		log("Export completed successfully")
 	} else {
-		fmt.Printf("Batch export completed: %d/%d files exported successfully", len(exportedPaths), len(ids))
+		log("Batch export completed: %d/%d files exported successfully", len(exportedPaths), len(ids))
 	}
 
 	return exportedPaths, nil
@@ -293,7 +296,7 @@ func (s *service) ExportZipFolders(folderIDs []int64, selectedFileIDs []int64) (
 		// Get folder info using filestoreutils
 		folderInfo, err := filestoreutils.GetFolderInfo(s.db, folderID)
 		if err != nil {
-			fmt.Printf("Failed to get folder info for ID %d: %v", folderID, err)
+			log("Failed to get folder info for ID %d: %v", folderID, err)
 			continue
 		}
 
@@ -301,14 +304,14 @@ func (s *service) ExportZipFolders(folderIDs []int64, selectedFileIDs []int64) (
 
 		if len(selectedFileIDs) > 0 && len(folderIDs) == 1 {
 			// Scenario 1: Export selected files from within a folder
-			fmt.Printf("Exporting %d selected files from folder '%s' as ZIP", len(selectedFileIDs), folderInfo.Name)
+			log("Exporting %d selected files from folder '%s' as ZIP", len(selectedFileIDs), folderInfo.Name)
 			filesToExport, err = filestoreutils.GetSelectedFilesInFolder(s.db, folderID, selectedFileIDs)
 		} else {
 			// Scenario 2: Export entire folder(s)
-			fmt.Printf("Exporting entire folder '%s' as ZIP", folderInfo.Name)
+			log("Exporting entire folder '%s' as ZIP", folderInfo.Name)
 			response, err := s.GetFilesInFolder(folderID)
 			if err != nil {
-				fmt.Printf("Failed to get files in folder %d: %v", folderID, err)
+				log("Failed to get files in folder %d: %v", folderID, err)
 				continue
 			}
 			// Convert from service FileInfo to filestoreutils FileInfo
@@ -324,31 +327,31 @@ func (s *service) ExportZipFolders(folderIDs []int64, selectedFileIDs []int64) (
 		}
 
 		if err != nil {
-			fmt.Printf("Failed to get files for folder %d: %v", folderID, err)
+			log("Failed to get files for folder %d: %v", folderID, err)
 			continue
 		}
 
 		if len(filesToExport) == 0 {
-			fmt.Printf("No files to export in folder '%s'", folderInfo.Name)
+			log("No files to export in folder '%s'", folderInfo.Name)
 			continue
 		}
 
 		// Create ZIP file using filestoreutils
 		zipPath, err := filestoreutils.CreateZipFile(s.db, s.dbKey, folderInfo.Name, filesToExport, tvault, exportDir)
 		if err != nil {
-			fmt.Printf("Failed to create ZIP for folder '%s': %v", folderInfo.Name, err)
+			log("Failed to create ZIP for folder '%s': %v", folderInfo.Name, err)
 			continue
 		}
 
 		exportedPaths = append(exportedPaths, zipPath)
-		fmt.Printf("ZIP created successfully: %s", zipPath)
+		log("ZIP created successfully: %s", zipPath)
 	}
 
 	if len(exportedPaths) == 0 {
 		return nil, fmt.Errorf("no ZIP files were created successfully")
 	}
 
-	fmt.Printf("ZIP export completed: %d ZIP files created", len(exportedPaths))
+	log("ZIP export completed: %d ZIP files created", len(exportedPaths))
 	return exportedPaths, nil
 }
 
@@ -403,7 +406,7 @@ func (s *service) DeleteFiles(ids []int64) error {
 		err := filestoreutils.SecurelyOverwriteFileData(s.tvaultPath, metadata.Offset, metadata.Length)
 		if err != nil {
 			// Log error but don't fail the entire operation since DB is already updated
-			fmt.Printf("Warning: Failed to securely overwrite data for file %s (ID: %d): %v\n",
+			log("Warning: Failed to securely overwrite data for file %s (ID: %d): %v\n",
 				metadata.Name, metadata.ID, err)
 		}
 	}

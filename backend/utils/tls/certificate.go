@@ -19,9 +19,12 @@ import (
 	"time"
 
 	util "Tella-Desktop/backend/utils/genericutil"
+	"Tella-Desktop/backend/utils/devlog"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+var log = devlog.Logger("tls")
 
 type Config struct {
 	CommonName   string
@@ -44,7 +47,7 @@ func GenerateTLSConfig(ctx context.Context, config Config) (*tls.Config, error) 
 	//generate hash of certificate
 	hash := sha256.Sum256(cert.Certificate[0])
 	hashStr := hex.EncodeToString(hash[:])
-	runtime.LogDebug(ctx, fmt.Sprintf("Hash value: %s", hashStr))
+	log("Hash value: %s", hashStr)
 	runtime.EventsEmit(ctx, "certificate-hash", hashStr)
 
 	tlsConfig := &tls.Config{

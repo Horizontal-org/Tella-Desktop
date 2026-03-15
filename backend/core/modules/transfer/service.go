@@ -212,7 +212,7 @@ func (s *service) AcceptTransfer(sessionID string) error {
 
 	select {
 	case pendingTransfer.ResponseChan <- response:
-		runtime.LogInfo(s.ctx, fmt.Sprintf("Transfer accepted for session: %s", sessionID))
+		log("Transfer accepted for session: %s", sessionID)
 		return nil
 	default:
 		return fmt.Errorf("failed to send acceptance response")
@@ -232,7 +232,7 @@ func (s *service) RejectTransfer(sessionID string) error {
 
 	select {
 	case pendingTransfer.ErrorChan <- fmt.Errorf("transfer rejected by recipient"):
-		runtime.LogInfo(s.ctx, fmt.Sprintf("Transfer rejected for session: %s", sessionID))
+		log("Transfer rejected for session: %s", sessionID)
 		return nil
 	default:
 		return fmt.Errorf("failed to send rejection response")
@@ -336,18 +336,7 @@ func (s *service) HandleUpload(sessionID, transmissionID, fileID string, reader 
 	// bit of time for large files. this forces the sender to keep the application open while nothing useful is happening
 	// on their side
 
-	// TODO: cblgh/(2026-03-06):
-	// check that config.MaxFileCount is not exceeded
-	// check that config.MaxFileFileSizeBytes is not exceeded for any file by wrapping reader in e.g. a LimitReader or
-	// MaxBytesReader
-
-	// NOTE cblgh(2026-02-19): LimitReader returns an EOF, which signals the end of reading activities for io.ReadAll or
-	// io.Copy. this means that we will only read exactly as many bytes as the sender has told us this file size is! if
-	// the file size is incorrectly stated, we will not read or save "the full file". coupled with the sha256 hashes we
-	// can detect any such issues.
-	// limit reading of the response to the claimed filesize. reading more bytes than the claimed size will return an error
-	fmt.Println("fileName is", fileName, "claimed size", transfer.FileInfo.Size)
-	// limitReader := io.LimitReader(reader, transfer.FileInfo.Size)
+	log("fileName is %q claimed size %d", fileName, transfer.FileInfo.Size)
 
 	// NOTE cblgh(2026-02-19): running into a bug when uploading a large file as part of many other files; something to the effect of
 	// what is described here https://github.com/googleapis/google-cloud-go/issues/987
@@ -409,7 +398,7 @@ resolveLoop:
 		"fileSize":  transfer.FileInfo.Size,
 	})
 
-	runtime.LogInfo(s.ctx, fmt.Sprintf("File stored successfully in folder %d. ID: %s, Name: %s", actualFolderID, metadata.UUID, metadata.Name))
+	log("File stored successfully in folder %d. ID: %s, Name: %s", actualFolderID, metadata.UUID, metadata.Name)
 	return nil
 }
 
@@ -483,6 +472,6 @@ func (s *service) createTransferFolder(title string) (int64, error) {
 		return 0, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	runtime.LogInfo(s.ctx, fmt.Sprintf("Created transfer folder '%s' with ID: %d", title, folderID))
+	log("Created transfer folder '%s' with ID: %d", title, folderID)
 	return folderID, nil
 }

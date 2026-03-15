@@ -44,6 +44,9 @@ wails dev -tags webkit2_41
 
 This will start both the backend server and frontend development server with hot reload.
 
+Note: during development (running with `wails dev`) the application will output debug logs that are
+not visible when running a release build.
+
 ## Folder hierarchy
 
 Frontend files (React) can be found at [`frontend/src/`](frontend/src). The vast majority of
@@ -98,7 +101,7 @@ The Windows executable will be saved as `tella.exe`.
 `build-for-windows.sh`
 ```sh
 #!/bin/bash
-CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC="zig cc -target x86_64-windows" CXX="zig cc -target x86_64-windows" go build -tags desktop,production -ldflags "-w -s -H windowsgui" -o tella.exe
+CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC="zig cc -target x86_64-windows" CXX="zig cc -target x86_64-windows" wails build -ldflags "-w -s" -o tella.exe
 ```
 
 ## Configuration

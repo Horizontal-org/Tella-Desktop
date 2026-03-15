@@ -15,6 +15,7 @@ import (
 	"Tella-Desktop/backend/utils/config"
 	"Tella-Desktop/backend/utils/network"
 	"Tella-Desktop/backend/utils/nonces"
+	"Tella-Desktop/backend/utils/devlog"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -33,6 +34,8 @@ type App struct {
 	defaultFolderID     int64
 }
 
+var log = devlog.Logger("app")
+
 // Auth related methods to expose to frontend
 func (a *App) IsFirstTimeSetup() bool {
 	return a.authService.IsFirstTimeSetup()
@@ -46,11 +49,11 @@ func (a *App) CreatePassword(password string) error {
 	}
 
 	if err := a.initializeServices(); err != nil {
-		runtime.LogError(a.ctx, "Failed to initialize database during setup: "+err.Error())
+		log("Failed to initialize database during setup: %s", err)
 		return err
 	}
 
-	runtime.LogInfo(a.ctx, "Database created and encrypted successfully")
+	log("Database created and encrypted successfully")
 	return nil
 }
 
@@ -69,7 +72,7 @@ func (a *App) VerifyPassword(password string) error {
 	// Initialize database after successful password verification
 	if a.db == nil {
 		if err := a.initializeServices(); err != nil {
-			runtime.LogError(a.ctx, "Failed to initialize database after login: "+err.Error())
+			log("Failed to initialize database after login: %s", err)
 			return err
 		}
 	}
@@ -127,26 +130,26 @@ func (a *App) initializeServices() error {
 	}
 
 	a.db = db
-	runtime.LogInfo(a.ctx, "Database initialized successfully with encryption")
+	log("Database initialized successfully with encryption")
 
 	// Create default folder for uploads if it doesn't exist
 	defaultFolder, err := a.ensureDefaultFolder(db.DB)
 	if err != nil {
-		runtime.LogError(a.ctx, "Failed to create default folder: "+err.Error())
+		log("Failed to create default folder: %s", err)
 		return err
 	}
 	a.defaultFolderID = defaultFolder
 
 	// Initialize filestore service with database and encryption key
 	a.fileService = filestore.NewService(a.ctx, db.DB, dbKey)
-	runtime.LogInfo(a.ctx, "File storage service initialized")
+	log("File storage service initialized")
 
 	// we pass the transfer service two functions from registration in:
 	// 1. registration.SessionIsValid, in order to check if an incoming session ID matches what was saved during the register step
 	// 2. registration.ForgetSession, which mitigates memory leaks by being called as part of the transfer service's
 	//    session management cleanup
 	a.transferService = transfer.NewService(a.ctx, a.fileService, db.DB, a.registrationService.SessionIsValid, a.registrationService.ForgetSession)
-	runtime.LogInfo(a.ctx, "Transfer service initialized")
+	log("Transfer service initialized")
 
 	// Re-initialize transfer and server services with filestore service
 	a.serverService = server.NewService(
@@ -296,7 +299,7 @@ func (a *App) LockApp() error {
 	// Stop the server if it's running
 	if a.serverService != nil && a.serverService.IsRunning() {
 		if err := a.serverService.Stop(a.ctx); err != nil {
-			runtime.LogError(a.ctx, "Failed to stop server during lock: "+err.Error())
+			log("Failed to stop server during lock: %s", err)
 		}
 	}
 
@@ -304,7 +307,7 @@ func (a *App) LockApp() error {
 	if a.db != nil {
 		a.db.Close()
 		a.db = nil
-		runtime.LogInfo(a.ctx, "Database connection closed for lock")
+		log("Database connection closed for lock")
 	}
 
 	// call lock on services with long-running goroutines for clearing memory to release any long-lived references &&
@@ -322,6 +325,6 @@ func (a *App) LockApp() error {
 		a.authService.ClearSession()
 	}
 
-	runtime.LogInfo(a.ctx, "Application locked successfully")
+	log("Application locked successfully")
 	return nil
 }
