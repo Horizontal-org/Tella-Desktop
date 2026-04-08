@@ -2,16 +2,21 @@ package nonces
 
 import (
 	"errors"
-	"sync"
+
+	// pastedown.lru is safe for concurrent use
+	"github.com/cespare/pastedown/lru"
 )
 
 type NonceManager struct {
-	// seen[nonce]bool
-	seen sync.Map
+	// seen[nonce] -> []byte{1}
+	seen *lru.Cache
 }
 
+const CAPACITY_BYTES = 100000000 // max bytes of memory to use before evicting entries
+// corresponds to the number of nonces that will be tracked.
+
 func NewNonceManager() *NonceManager {
-	return &NonceManager{seen: sync.Map{}}
+	return &NonceManager{seen: lru.New(CAPACITY_BYTES)}
 }
 
 var ErrNonceReuse = errors.New("nonce has already been seen before")
@@ -21,9 +26,9 @@ func (n *NonceManager) Add(nonce string) error {
 	if nonce == "" {
 		return ErrNonceZeroLength
 	}
-	if _, ok := n.seen.Load(nonce); ok {
+	if _, exists := n.seen.Get(nonce); exists {
 		return ErrNonceReuse
 	}
-	n.seen.Store(nonce, true)
+	n.seen.Insert(nonce, []byte{1})
 	return nil
 }
