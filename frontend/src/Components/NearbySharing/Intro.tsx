@@ -19,6 +19,8 @@ export function IntroStep({
         </TitleContainer>
         <DescriptionContainer>
             <StepDescription>Both devices must be connected to the same Wi-Fi network, using local Wi-Fi or setting up a Hotspot connection.</StepDescription>
+            <ReceiveOnlyNotice>For now, you can only <EmphasisText>receive</EmphasisText> files on Tella Desktop.</ReceiveOnlyNotice>
+
         </DescriptionContainer>
 
        <ButtonContainer>
@@ -60,6 +62,14 @@ const StepSubtitle = styled.p`
 
 const StepDescription = styled.p`
   color: ##5F6368;
+`
+const ReceiveOnlyNotice = styled.p`
+  color: ##5F6368;
+`
+const EmphasisText = styled.span`
+  color: ##5F6368;
+  font-weight: 700;
+  font-style: italic;
 `
 
 const IntroCard = styled.div`
