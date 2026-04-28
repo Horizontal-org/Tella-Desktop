@@ -25,13 +25,16 @@ import {
   FilesHeader,
   DateHeader,
   FolderIcon,
+  FoldersIcon,
   FolderName,
   Checkbox,
   NoItemsMessage,
+  NoItemsContainer,
 } from '../../styles/TableStyles';
 import { Dialog } from '../Dialog/Dialog';
 import { LoadingDialog } from '../Dialog/LoadingDialog';
 import { SuccessToast } from '../Toast/SuccessToast';
+import { sanitizeUGC } from "../../util/util"
 
 interface FolderInfo {
   id: number
@@ -247,9 +250,12 @@ export function FolderList() {
   if (!folders || folders.length === 0) {
     return (
       <Container>
-        <NoItemsMessage>
-          This is where the files you receive will be displayed. Click on “Nearby Sharing” to get started.
-        </NoItemsMessage>
+          <NoItemsContainer>
+            <FoldersIcon/>
+            <NoItemsMessage>
+              This is where the files you receive will be displayed. Click on “Nearby Sharing” to get started.
+            </NoItemsMessage>
+          </NoItemsContainer>
       </Container>
     );
   }
@@ -312,7 +318,7 @@ export function FolderList() {
                 </CheckboxCell>
                 <NameCell>
                   <FolderIcon />
-                  <FolderName>{folder.name}</FolderName>
+                  <FolderName>{sanitizeUGC(folder.name)}</FolderName>
                 </NameCell>
                 <FilesCell>{folder.fileCount} files</FilesCell>
                 <DateCell>{formatTimestamp(folder.timestamp)}</DateCell>

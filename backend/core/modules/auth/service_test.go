@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"Tella-Desktop/backend/utils/constants"
+	util "Tella-Desktop/backend/utils/genericutil"
 )
 
 // Create a test-specific implementation of the auth service
@@ -22,12 +23,12 @@ type testService struct {
 func (s *testService) Initialize(ctx context.Context) error {
 	// Create vault directory if it doesn't exist
 	vaultDir := filepath.Dir(s.tvaultPath)
-	if err := os.MkdirAll(vaultDir, 0755); err != nil {
+	if err := os.MkdirAll(vaultDir, util.USER_ONLY_DIR_PERMS); err != nil {
 		return err
 	}
 
 	// Create temp directory
-	if err := os.MkdirAll(s.tempDir, 0755); err != nil {
+	if err := os.MkdirAll(s.tempDir, util.USER_ONLY_DIR_PERMS); err != nil {
 		return err
 	}
 
@@ -37,6 +38,18 @@ func (s *testService) Initialize(ctx context.Context) error {
 func (s *testService) IsFirstTimeSetup() bool {
 	_, err := os.Stat(s.tvaultPath)
 	return os.IsNotExist(err)
+}
+
+func (s *testService) ClearSession() {
+	// Clear the database key from memory
+	if s.dbKey != nil {
+		// Zero out the key for security
+		for i := range s.dbKey {
+			s.dbKey[i] = 0
+		}
+		s.dbKey = nil
+	}
+	s.isUnlocked = false
 }
 
 func (s *testService) CreatePassword(password string) error {
@@ -51,7 +64,7 @@ func (s *testService) CreatePassword(password string) error {
 	}
 
 	// Create a mock TVault file
-	file, err := os.Create(s.tvaultPath)
+	file, err := util.NarrowCreate(s.tvaultPath)
 	if err != nil {
 		return err
 	}
@@ -109,7 +122,10 @@ func setupTestEnvironment(t *testing.T) (Service, func()) {
 
 	// Return cleanup function
 	cleanup := func() {
-		os.RemoveAll(tempDir)
+		err = os.RemoveAll(tempDir)
+		if err != nil {
+			t.Fatalf("failed to clean up temp dir: %v", err)
+		}
 	}
 
 	return service, cleanup
@@ -243,6 +259,9 @@ func TestDecryptDatabaseKey(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		// clear previous session
+		service.ClearSession()
+
 		t.Run(tc.name, func(t *testing.T) {
 			err := service.DecryptDatabaseKey(tc.password)
 

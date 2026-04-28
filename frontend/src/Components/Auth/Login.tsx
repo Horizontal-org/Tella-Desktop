@@ -62,6 +62,7 @@ export function Login({ onLoginSuccess, initialError = '' }: LoginProps) {
             <Input
               type="password"
               id="password"
+              maxLength={1000}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter password"

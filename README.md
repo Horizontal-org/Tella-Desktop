@@ -11,8 +11,6 @@ User facing documentation:
 - about the Nearby Sharing in general: https://beta.tella-app.org/nearby-sharing
 - about Tella Desktop: https://beta.tella-app.org/get-started-desktop/
 
-
-
 ## Prerequisites
 
 - Go 1.24 or later
@@ -30,7 +28,7 @@ go install github.com/wailsapp/wails/v2/cmd/wails@latest
 2. Install frontend dependencies:
 ```bash
 cd frontend
-npm install
+npm install --include=dev
 ```
 
 3. Run in development mode:
@@ -45,6 +43,38 @@ wails dev -tags webkit2_41
 ```
 
 This will start both the backend server and frontend development server with hot reload.
+
+Note: during development (running with `wails dev`) the application will output debug logs that are
+not visible when running a release build.
+
+## Folder hierarchy
+
+Frontend files (React) can be found at [`frontend/src/`](frontend/src). The vast majority of
+all the React code resides in [`frontend/src/Components`](frontend/src/Components). 
+
+Backend files reside in [`backend`](backend) split across folders [`app`](backend/app),
+[`core`](backend/core), and [`utils`](backend/utils/).
+
+* `app`: Logic to bootstrap the application. Also declares public methods on the backend which can be
+  called by the frontend.
+* `core`: Holds majority of the code - all logic, database operations, http handlers and routes, and any other server-side handling.
+* `utils`: Various utilities dealing with auth, file storage, network, and TLS.
+
+The backend is divided logically across different "services" for the following domains:
+
+* **Database**: everything related to the database
+* **Authentication**: deals with user authentication and local encryption
+* **Registration**: handles setting up a new transfer session
+* **Transfer**: takes care of an ongoing transfer session
+* **Server**: the HTTPS server
+* **File storage**: bundles together all file storage and file manipulation functions
+
+Each service package has the following structure:
+
+* `handler.go`: sets up any HTTP handlers if needed / instantiates the service.
+* `ports.go`: declare the public interface of the server.
+* `service.go`: the concrete implementation of the specific service.
+* `models.go`: declares struct types.
 
 ## Building
 
@@ -71,18 +101,46 @@ The Windows executable will be saved as `tella.exe`.
 `build-for-windows.sh`
 ```sh
 #!/bin/bash
-CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC="zig cc -target x86_64-windows" CXX="zig cc -target x86_64-windows" go build -tags desktop,production -ldflags "-w -s -H windowsgui" -o tella.exe
+CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC="zig cc -target x86_64-windows" CXX="zig cc -target x86_64-windows" wails build -ldflags "-w -s" -o tella.exe
 ```
+
+## Configuration
+
+A basic configuration file exists called `desktop-settings.toml`. It currently controls the
+following settings:
+
+```toml
+# the maximum allowed file size to be sent. currently 3GB
+maxFileSizeBytes = 3000000000
+# maximum amount of files allowed to be sent in a single transfer session
+maxFileCount = 1000
+# the default port used 
+defaultPort = 53320
+``` 
+
+The config file can be found at:
+
+* Linux: `~/.config/desktop-settings.toml`
+* Windows: `~\AppData\Local\Tella\desktop-settings.toml`
+* OSX: `~/Library/Application Support/Tella/desktop-settings.toml`
+
+If you need to change the default port, changing this file is how you can accomplish it
+currently. In the future a settings pane will be added for changing settings directly in the
+application.
 
 ## Protocol Support
 
 The application implements the [Tella Nearby Sharing protocol](https://github.com/Horizontal-org/Tella-P2P-Protocol) with the following endpoints:
 
-- Default Port: 53317 (user configurable if unavailable)
+- Default Port: 53320
 - `POST /api/v1/ping` - Initial handshake for manual connections
 - `POST /api/v1/register` - Device registration with PIN authentication
 - `POST /api/v1/prepare-upload` - Prepare file transfer session
 - `PUT /api/v1/upload` - File upload with binary data
+
+**Endpoints not fully implemented as of 2026-02-12:**
+
+* `POST /api/v1/close-connection`
 
 ## Platform-Specific Notes
 

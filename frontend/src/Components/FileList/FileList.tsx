@@ -4,6 +4,9 @@ import { GetFilesInFolder, ExportFiles, ExportZipFolders, DeleteFiles } from '..
 import { Dialog } from '../Dialog/Dialog';
 import { LoadingDialog } from '../Dialog/LoadingDialog';
 import { SuccessToast } from '../Toast/SuccessToast';
+
+import { sanitizeUGC } from "../../util/util"
+
 import {
   Container,
   Header,
@@ -334,7 +337,7 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
     return (
       <Container>
         <Header>
-          <HeaderTitle>Received &gt; {folderInfo?.name || 'Folder'}</HeaderTitle>
+          <HeaderTitle>Received &gt; {sanitizeUGC(folderInfo?.name || 'Folder')}</HeaderTitle>
         </Header>
         <NoItemsMessage>
           No files found in this folder.
@@ -346,7 +349,7 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
   return (
     <Container>
       <Header>
-        <HeaderTitle>Received &gt; {folderInfo?.name || 'Folder'}</HeaderTitle>
+        <HeaderTitle>Received &gt; {sanitizeUGC(folderInfo?.name || 'Folder')}</HeaderTitle>
       </Header>
       
       <ToolbarContainer $isVisible={selectedFiles.size > 0}>
@@ -406,7 +409,7 @@ export function FileList({ folderId: propFolderId, folderName: propFolderName }:
                 </CheckboxCell>
                 <NameCell>
                   <FileIcon>{getFileIcon(file.mimeType)}</FileIcon>
-                  <FileName>{file.name}</FileName>
+                  <FileName>{sanitizeUGC(file.name)}</FileName>
                 </NameCell>
                 <SizeCell>{formatFileSize(file.size)}</SizeCell>
                 <DateCell>{formatTimestamp(file.timestamp)}</DateCell>

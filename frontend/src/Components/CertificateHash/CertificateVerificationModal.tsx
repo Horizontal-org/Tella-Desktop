@@ -41,7 +41,7 @@ export function CertificateVerificationModal({
         
         <ModalContent>
           <Description>
-            Make sure that this sequence matches what is shown on the sender's device.
+          To ensure that the connection is safe, make sure that the sequence of numbers below matches what is shown on the other device.
           </Description>
           
           <HashContainer>
@@ -51,8 +51,7 @@ export function CertificateVerificationModal({
           </HashContainer>
           
           <Warning>
-            If the sequence on your device does not match the sequence on the sender's device, 
-            the connection may not be secure and should be discarded.
+          If the sequences do not match, the connection may not be secure and should be discarded. 
           </Warning>
         </ModalContent>
         

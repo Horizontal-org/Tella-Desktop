@@ -17,6 +17,8 @@ export function ExportFiles(arg1:Array<number>):Promise<Array<string>>;
 
 export function ExportZipFolders(arg1:Array<number>,arg2:Array<number>):Promise<Array<string>>;
 
+export function GetDefaultPort():Promise<number>;
+
 export function GetFilesInFolder(arg1:number):Promise<filestore.FilesInFolderResponse>;
 
 export function GetLocalIPs():Promise<Array<string>>;
@@ -24,8 +26,6 @@ export function GetLocalIPs():Promise<Array<string>>;
 export function GetServerPIN():Promise<string>;
 
 export function GetStoredFolders():Promise<Array<filestore.FolderInfo>>;
-
-export function GetWiFiNetworkName():Promise<string>;
 
 export function IsFirstTimeSetup():Promise<boolean>;
 
@@ -42,5 +42,7 @@ export function Shutdown(arg1:context.Context):Promise<void>;
 export function StartServer(arg1:number):Promise<void>;
 
 export function StopServer():Promise<void>;
+
+export function StopTransfer(arg1:string):Promise<void>;
 
 export function VerifyPassword(arg1:string):Promise<void>;

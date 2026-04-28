@@ -12,9 +12,6 @@ export function NearbySharing() {
   const {
     currentStep,
     serverRunning,
-    isStartingServer,
-    wifiNetwork,
-    isWifiConfirmed,
     localIPs,
     currentSessionId,
     transferData,
@@ -23,9 +20,7 @@ export function NearbySharing() {
     modalState,
     isUsingQRMode,
 
-    setIsWifiConfirmed,
     handleQRModeChange,
-    isLoadingWifi,
     
     handleContinue,
     handleVerificationConfirm,
@@ -34,6 +29,7 @@ export function NearbySharing() {
     handleFileRequestReject,
     handleFileReceiving,
     handleReceiveComplete,
+    handleStopTransfer,
     handleViewFiles
   } = useNearbySharing();
 
@@ -50,11 +46,6 @@ export function NearbySharing() {
       <MainContent>
         {currentStep === 'intro' && (
           <IntroStep 
-            wifiNetwork={wifiNetwork}
-            isLoadingWifi={isLoadingWifi} 
-            isWifiConfirmed={isWifiConfirmed} 
-            onWifiConfirmChange={setIsWifiConfirmed} 
-            isStartingServer={isStartingServer}
             onContinue={handleContinue} 
           />
         )}
@@ -85,11 +76,13 @@ export function NearbySharing() {
             totalSize={transferData.totalSize}
             files={transferData.files}
             onComplete={handleReceiveComplete}
+            onStop={handleStopTransfer}
           />
         )}
         
         {currentStep === 'results' && (
           <ResultsStep 
+            transferredFiles={transferData?.transferredFiles} 
             totalFiles={transferData?.totalFiles} 
             folderTitle={transferData?.title}
             onViewFiles={handleViewFiles} 

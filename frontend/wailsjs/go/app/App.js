@@ -30,6 +30,10 @@ export function ExportZipFolders(arg1, arg2) {
   return window['go']['app']['App']['ExportZipFolders'](arg1, arg2);
 }
 
+export function GetDefaultPort() {
+  return window['go']['app']['App']['GetDefaultPort']();
+}
+
 export function GetFilesInFolder(arg1) {
   return window['go']['app']['App']['GetFilesInFolder'](arg1);
 }
@@ -44,10 +48,6 @@ export function GetServerPIN() {
 
 export function GetStoredFolders() {
   return window['go']['app']['App']['GetStoredFolders']();
-}
-
-export function GetWiFiNetworkName() {
-  return window['go']['app']['App']['GetWiFiNetworkName']();
 }
 
 export function IsFirstTimeSetup() {
@@ -80,6 +80,10 @@ export function StartServer(arg1) {
 
 export function StopServer() {
   return window['go']['app']['App']['StopServer']();
+}
+
+export function StopTransfer(arg1) {
+  return window['go']['app']['App']['StopTransfer'](arg1);
 }
 
 export function VerifyPassword(arg1) {

@@ -1,18 +1,18 @@
 package authutils
 
 import (
-	"os"
-	"path/filepath"
-
 	"github.com/adrg/xdg"
+	"path/filepath"
 )
 
 // Directory constants
 const (
-	TellaAppName = "Tella"
-	TVaultFile   = ".tvault"
-	TellaDBFile  = ".tella.db"
-	TempDir      = "temp"
+	// TODO cblgh(2026-03-06): obfuscate `TellaAppName`?
+	TellaAppName   = "Tella"
+	TVaultFile     = ".tvault"
+	TellaDBFile    = ".tella.db"
+	TempDir        = "temp"
+	ConfigFilename = "desktop-settings.toml"
 )
 
 // Create wrappers around XDG functions that we can mock in tests
@@ -28,6 +28,16 @@ var xdgConfigFile = func(relPath string) (string, error) {
 	return xdg.ConfigFile(relPath)
 }
 
+func GetConfigFilePath() string {
+	p, err := xdgConfigFile(ConfigFilename)
+	if err != nil {
+		return ""
+	}
+	return p
+}
+
+// TODO cblgh(2026-02-12): remove all "local directory" fallbacks to limit spreading data exposure across multiple directories?
+// return err instead and let caller handle what to do?
 func GetTVaultPath() string {
 	path, err := xdgDataFile(filepath.Join(TellaAppName, TVaultFile))
 	if err != nil {
@@ -47,34 +57,14 @@ func GetDatabasePath() string {
 }
 
 func GetTempDir() string {
-	path, err := xdgCacheFile(filepath.Join(TellaAppName, TempDir, "placeholder"))
+	tdir, err := xdgCacheFile(filepath.Join(TellaAppName, TempDir))
 	if err != nil {
 		// Fallback to local directory
 		return filepath.Join(".", TempDir)
 	}
-
-	// Return just the directory part
-	dir := filepath.Dir(path)
-
-	// Ensure the directory exists
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return filepath.Join(".", TempDir)
-	}
-
-	return dir
+	return tdir
 }
 
 func GetExportDir() string {
-	downloadDir := xdg.UserDirs.Download
-
-	exportDir := filepath.Join(downloadDir, TellaAppName)
-
-	if err := os.MkdirAll(exportDir, 0755); err != nil {
-		// Fallback to current directory if Downloads is not accessible
-		fallbackDir := filepath.Join(".", "exports")
-		os.MkdirAll(fallbackDir, 0755)
-		return fallbackDir
-	}
-
-	return exportDir
+	return filepath.Join(xdg.UserDirs.Documents, "Exports")
 }

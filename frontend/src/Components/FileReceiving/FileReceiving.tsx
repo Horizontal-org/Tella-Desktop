@@ -3,6 +3,8 @@ import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import styled, { keyframes } from 'styled-components';
 import folderIcon from '../../assets/images/icons/folder-icon.svg'
 
+import { sanitizeUGC } from "../../util/util"
+
 interface FileReceivingData {
   sessionId: string;
   fileId: string;
@@ -25,6 +27,7 @@ interface FileReceivingProps {
   totalSize: number;
   files: FileInfo[];
   onComplete: () => void;
+  onStop: () => void;
 }
 
 export function FileReceiving({ sessionId, 
@@ -32,12 +35,16 @@ export function FileReceiving({ sessionId,
   totalFiles, 
   totalSize, 
   files, 
-  onComplete  
+  onComplete,
+  onStop
 }: FileReceivingProps) {
   const [receivingFiles, setReceivingFiles] = useState<FileReceivingData[]>([]);
   const [completedFiles, setCompletedFiles] = useState<FileReceivingData[]>([]);
+  const [failedFiles, setFailedFiles] = useState<FileReceivingData[]>([]);
   const [receivedSize, setReceivedSize] = useState(0);
 
+  // TODO: cblgh(2026-02-20): these effects need to be improved because they are somehow being registered twice without
+  // proper deregistration due to the debug behaviour of react (during dev, react runs all effects twice)
   // Initialize receiving files from props
   useEffect(() => {
     const initialFiles = files.map(file => ({
@@ -56,6 +63,12 @@ export function FileReceiving({ sessionId,
     });
   }, [sessionId, files]);
 
+  // TODO: cblgh(2026-02-20): these effects need to be improved because they are somehow being registered twice without
+  // proper deregistration due to the debug behaviour of react (during dev, react runs all effects twice). this
+  // incorrectly causes the progress indicator to show double the amount of files processed (so 8 instead of 4, when 4
+  // files have been received) and double the amount of data transferred.
+  //
+  // i have verified that this problem is not present in release builds
   useEffect(() => {
     console.log("Setting up FileReceiving event listeners for sessionId:", sessionId);
 
@@ -98,14 +111,41 @@ export function FileReceiving({ sessionId,
                 return newSize;
               });
             }
-            
-            console.log(`Progress: ${newCompleted.length}/${totalFiles} files completed`);
-            if (newCompleted.length === totalFiles && totalFiles > 0) {
+
+            console.log(`Progress: ${failedFiles.length + newCompleted.length}/${totalFiles} files completed`);
+            if ((failedFiles.length + newCompleted.length) === totalFiles && totalFiles > 0) {
               console.log("🎉 All files completed!");
+              // TODO cblgh(2026-02-16): call down to the backend for a new fn "CleanupTransfer / AllFilesResolved". 
               setTimeout(() => onComplete(), 1000);
             }
-            
             return newCompleted;
+          }
+          return prev;
+        });
+      }
+    });
+
+    // Listen for file upload failure events
+    const cleanupFailed = EventsOn("file-receive-failed", (data) => {
+      console.log("❌ File failed:", data);
+      const fileData = data as FileReceivingData;
+      
+      if (fileData.sessionId === sessionId) {
+        console.log("❌ File failed for our session:", fileData);
+        
+        // Move from receiving to failed
+        setReceivingFiles(prev => prev.filter(f => f.fileId !== fileData.fileId));
+        setFailedFiles(prev => {
+          const exists = prev.some(f => f.fileId === fileData.fileId);
+          if (!exists) {
+            const newFailed = [...prev, fileData];
+            
+            if ((newFailed.length + completedFiles.length) === totalFiles && totalFiles > 0) {
+              console.log("🎉 All files completed!");
+              // TODO cblgh(2026-02-16): call down to the backend for a new fn "CleanupTransfer / AllFilesResolved". 
+              setTimeout(() => onComplete(), 1000);
+            }
+            return newFailed;
           }
           return prev;
         });
@@ -124,6 +164,7 @@ export function FileReceiving({ sessionId,
       
     });
 
+    // TODO cblgh(2026-02-16): event that is currently unused?
     // Listen for transfer cancellation
     const cleanupCancel = EventsOn("transfer-cancelled", (data) => {
       console.log("❌ Transfer cancelled:", data);
@@ -140,6 +181,7 @@ export function FileReceiving({ sessionId,
       console.log("🧹 Cleaning up FileReceiving event listeners");
       cleanupReceiving();
       cleanupReceived();
+      cleanupFailed();
       cleanupProgress();
       cleanupCancel();
     };
@@ -157,7 +199,8 @@ export function FileReceiving({ sessionId,
 
   const handleCancelTransfer = () => {
     console.log("Cancel transfer requested for session:", sessionId);
-    onComplete();
+    // TODO cblgh(2026-02-16): bubble up call to backend for ending the transfer
+    onStop();
   };
 
   return (
@@ -171,7 +214,7 @@ export function FileReceiving({ sessionId,
         <TransferHeader>
           <TransferName>
             <FolderIcon/>
-            <TransferText>{transferTitle}</TransferText>
+            <TransferText>{sanitizeUGC(transferTitle)}</TransferText>
           </TransferName>
            <ProgressText>
             {Math.min(currentFileNumber, totalFiles)}/{totalFiles} files

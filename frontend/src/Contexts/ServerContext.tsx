@@ -1,7 +1,5 @@
 import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
-import { StartServer, StopServer } from '../../wailsjs/go/app/App';
-
-const SERVER_PORT = 53317;
+import { StartServer, StopServer, GetDefaultPort } from '../../wailsjs/go/app/App';
 
 interface ServerContextValue {
   isRunning: boolean;
@@ -26,6 +24,7 @@ export function ServerProvider({ children }: ServerProviderProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [serverPort, setServerPort] = useState(-1)
   
   const serverStateRef = useRef({
     isRunning: false,
@@ -33,9 +32,15 @@ export function ServerProvider({ children }: ServerProviderProps) {
   });
 
   const startServer = useCallback(async (): Promise<boolean> => {
+    const defaultPort = await GetDefaultPort();
+    setServerPort(defaultPort)
     if (serverStateRef.current.isRunning || serverStateRef.current.isStarting) {
-      console.log('Server already running or starting');
-      return serverStateRef.current.isRunning;
+      if (serverStateRef.current.isRunning) {
+          console.log("Server is already running");
+      } else if (serverStateRef.current.isStarting) {
+          console.log("Server is starting up");
+      }
+      return serverStateRef.current.isRunning || serverStateRef.current.isStarting;
     }
 
     try {
@@ -43,7 +48,7 @@ export function ServerProvider({ children }: ServerProviderProps) {
       setError(null);
       serverStateRef.current.isStarting = true;
       
-      await StartServer(SERVER_PORT);
+      await StartServer(defaultPort);
       
       setIsRunning(true);
       serverStateRef.current.isRunning = true;
@@ -103,7 +108,7 @@ export function ServerProvider({ children }: ServerProviderProps) {
     isRunning,
     isStarting,
     error,
-    port: SERVER_PORT,
+    port: serverPort,
 
     startServer,
     stopServer,

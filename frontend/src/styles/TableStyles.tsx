@@ -3,11 +3,13 @@ import folderIcon from '../assets/images/icons/folder-icon.svg';
 import trashIcon from '../assets/images/icons/trash-icon.svg';
 import zipIcon from '../assets/images/icons/zip-icon.svg';
 import exportFileIcon from '../assets/images/icons/export-file-icon.svg';
+import foldersIcon from "../assets/images/icons/files.svg";
 
 // Common container components
 export const Container = styled.div`
   padding: 1rem;
   margin-bottom: 1.5rem;
+  height: 100%;
 `;
 
 export const Header = styled.div`
@@ -248,7 +250,19 @@ export const ErrorMessage = styled(BaseMessage)`
   border: 1px solid rgba(239, 68, 68, 0.3);
 `;
 
-export const NoItemsMessage = styled(BaseMessage)``;
+export const NoItemsContainer = styled.div`
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-items: center;
+height: 100%;
+justify-content: center;
+`
+
+export const NoItemsMessage = styled(BaseMessage)`
+font-weight: 700;
+max-width: 20rem;
+`;
 
 // Utility components
 export const RefreshButton = styled.button`
@@ -264,4 +278,14 @@ export const RefreshButton = styled.button`
   &:hover {
     background-color: #1e56c9;
   }
+`;
+
+export const FoldersIcon = styled.div`
+  width: 5rem;
+  height: 5rem;
+  flex-shrink: 0;
+  background-image: url(${foldersIcon});
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
 `;

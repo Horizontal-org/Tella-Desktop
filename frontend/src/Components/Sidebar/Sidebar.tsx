@@ -45,6 +45,8 @@ export function Sidebar({ className, onLock }: SidebarProps) {
 
   const handleLock = async () => {
     try {
+      // call ServerContext.stopServer primarily to reset the frontend state
+      await stopServer();    
       await LockApp();
       if (onLock) {
         onLock();

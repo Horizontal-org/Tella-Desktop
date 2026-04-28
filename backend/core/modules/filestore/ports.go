@@ -4,7 +4,7 @@ import "io"
 
 type Service interface {
 	// StoreFile encrypts and stores a file in TVault, returning its metadata
-	StoreFile(folderID int64, fileName string, mimeType string, reader io.Reader) (*FileMetadata, error)
+	StoreFile(folderID, claimedSize int64, claimedHash string, fileName string, mimeType string, reader io.Reader) (*FileMetadata, error)
 
 	// GetStoredFolders returns a list of folders with file counts
 	GetStoredFolders() ([]FolderInfo, error)

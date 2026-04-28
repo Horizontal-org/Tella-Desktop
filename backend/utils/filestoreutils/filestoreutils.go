@@ -2,16 +2,23 @@ package filestoreutils
 
 import (
 	"Tella-Desktop/backend/utils/authutils"
+	util "Tella-Desktop/backend/utils/genericutil"
+	"Tella-Desktop/backend/utils/devlog"
 	"archive/zip"
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/gabriel-vasile/mimetype"
 )
+
+var log = devlog.Logger("filestoreutils")
 
 // insertFileMetadata adds file metadata to the database
 func InsertFileMetadata(
@@ -103,118 +110,36 @@ func CreateUniqueFilename(dir, fileName string) string {
 
 // GetFileExtensionFromMimeType returns the appropriate file extension for a given mimetype
 func GetFileExtensionFromMimeType(mimeType string) string {
-	// Common image formats
-	switch mimeType {
-	case "image/jpeg", "image/jpg":
-		return ".jpg"
-	case "image/png":
-		return ".png"
-	case "image/gif":
-		return ".gif"
-	case "image/webp":
-		return ".webp"
-	case "image/tiff":
-		return ".tiff"
-	case "image/bmp":
-		return ".bmp"
-	case "image/heic":
-		return ".heic"
-	case "image/heif":
-		return ".heif"
+	lookup := mimetype.Lookup(mimeType)
 
-	// Video formats
-	case "video/mp4":
-		return ".mp4"
-	case "video/avi":
-		return ".avi"
-	case "video/mov", "video/quicktime":
-		return ".mov"
-	case "video/wmv":
-		return ".wmv"
-	case "video/flv":
-		return ".flv"
-	case "video/webm":
-		return ".webm"
-	case "video/3gpp":
-		return ".3gp"
-
-	// Audio formats
-	case "audio/mpeg", "audio/mp3":
-		return ".mp3"
-	case "audio/wav":
-		return ".wav"
-	case "audio/aac":
-		return ".aac"
-	case "audio/ogg":
-		return ".ogg"
-	case "audio/flac":
-		return ".flac"
-	case "audio/m4a":
-		return ".m4a"
-
-	// Document formats
-	case "application/pdf":
-		return ".pdf"
-	case "application/msword":
-		return ".doc"
-	case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-		return ".docx"
-	case "application/vnd.ms-excel":
-		return ".xls"
-	case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-		return ".xlsx"
-	case "application/vnd.ms-powerpoint":
-		return ".ppt"
-	case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-		return ".pptx"
-	case "text/plain":
-		return ".txt"
-	case "text/html":
-		return ".html"
-	case "text/css":
-		return ".css"
-	case "application/javascript", "text/javascript":
-		return ".js"
-	case "application/json":
-		return ".json"
-	case "application/xml", "text/xml":
-		return ".xml"
-
-	// Archive formats
-	case "application/zip":
-		return ".zip"
-	case "application/x-rar-compressed":
-		return ".rar"
-	case "application/x-tar":
-		return ".tar"
-	case "application/gzip":
-		return ".gz"
-
-	// Default case: try to extract from mimetype
-	default:
-		if strings.HasPrefix(mimeType, "image/") {
-			return ".img"
-		}
-		if strings.HasPrefix(mimeType, "video/") {
-			return ".video"
-		}
-		if strings.HasPrefix(mimeType, "audio/") {
-			return ".audio"
-		}
-		if strings.HasPrefix(mimeType, "text/") {
-			return ".txt"
-		}
-		return ".file"
+	// our library knows about the given mimetype, return the associated extension
+	if lookup != nil {
+		return lookup.Extension()
 	}
+
+	// if our library doesn't have any record of this mimetype, try to extract something useful from the mimeType.
+	// worst case, if mime type is not anything intelligible,  default to returning just `.file` as extension
+	prefixes := []string{"image/", "video/", "audio/", "text/"}
+	for _, prefix := range prefixes {
+		extractedType, success := strings.CutPrefix(mimeType, prefix)
+		if success {
+			return "." + extractedType
+		}
+	}
+	return ".file"
 }
 
 // EnsureFileExtension ensures a filename has the correct extension based on its mimetype
-func EnsureFileExtension(fileName, mimeType string) string {
+func EnsureFileExtension(fileName, inferredMIMEType, metadataMimeType string) string {
 	// Check if the filename already has an extension
 	if filepath.Ext(fileName) != "" {
 		return fileName // Already has an extension, keep it
 	}
 
+	mimeType := metadataMimeType
+	if inferredMIMEType != "" {
+		mimeType = inferredMIMEType
+	}
 	// No extension found, add one based on mimetype
 	extension := GetFileExtensionFromMimeType(mimeType)
 	return fileName + extension
@@ -249,6 +174,7 @@ type FileMetadata struct {
 	CreatedAt time.Time
 }
 
+var errGetMetadata = errors.New("error getting file metadata")
 // GetFileMetadataByID retrieves file metadata from database by ID
 func GetFileMetadataByID(db *sql.DB, id int64) (*FileMetadata, error) {
 	var metadata FileMetadata
@@ -261,14 +187,17 @@ func GetFileMetadataByID(db *sql.DB, id int64) (*FileMetadata, error) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("file not found with ID: %d", id)
+			log("file not found with ID: %d", id)
+			return nil, errGetMetadata
 		}
-		return nil, fmt.Errorf("failed to fetch file metadata: %w", err)
+		log("failed to fetch file metadata: %w", err)
+		return nil, errGetMetadata
 	}
 
 	return &metadata, nil
 }
 
+var errGetFolder = errors.New("error getting folder info")
 // GetFolderInfo retrieves folder information from database by ID
 func GetFolderInfo(db *sql.DB, folderID int64) (*FolderInfo, error) {
 	var folder FolderInfo
@@ -280,40 +209,38 @@ func GetFolderInfo(db *sql.DB, folderID int64) (*FolderInfo, error) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("folder not found with ID: %d", folderID)
+			log("folder not found with ID: %d", folderID)
+			return nil, errGetFolder
 		}
-		return nil, fmt.Errorf("failed to get folder info: %w", err)
+		log("failed to get folder info: %w", err)
+		return nil, errGetFolder
 	}
 
 	return &folder, nil
 }
 
+var errGetSelected = errors.New("error selecting files")
 // GetSelectedFilesInFolder retrieves specific files within a folder from database
 func GetSelectedFilesInFolder(db *sql.DB, folderID int64, fileIDs []int64) ([]FileInfo, error) {
 	if len(fileIDs) == 0 {
-		return nil, fmt.Errorf("no file IDs provided")
+		log("no file IDs provided")
+		return nil, errGetSelected
 	}
 
-	// Create placeholders for SQL IN clause
-	placeholders := make([]string, len(fileIDs))
-	args := make([]interface{}, len(fileIDs)+1)
-	args[0] = folderID
+	// to eliminate the risk of SQLi due to dynamic query construction, we split up the query into one two steps: step 1
+	// uses a static prepared sql statement to get all relevant files. step 2 does a Go-based filtering on the returned db results.
 
-	for i, id := range fileIDs {
-		placeholders[i] = "?"
-		args[i+1] = id
-	}
+	// step 1: get all the files for the given folder marked as not deleted
+	filesInFolderQuery := `SELECT id, name, mime_type, created_at, size 
+	FROM files 
+	WHERE folder_id = ? AND is_deleted = 0 
+	ORDER BY created_at DESC`
 
-	query := fmt.Sprintf(`
-		SELECT id, name, mime_type, created_at, size 
-		FROM files 
-		WHERE folder_id = ? AND id IN (%s) AND is_deleted = 0 
-		ORDER BY created_at DESC
-	`, strings.Join(placeholders, ","))
-
-	rows, err := db.Query(query, args...)
+	// Query creates a prepared stmt under the hood
+	rows, err := db.Query(filesInFolderQuery, folderID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query selected files: %w", err)
+		log("failed to query selected files: %w", err)
+		return nil, errGetSelected
 	}
 	defer rows.Close()
 
@@ -321,67 +248,100 @@ func GetSelectedFilesInFolder(db *sql.DB, folderID int64, fileIDs []int64) ([]Fi
 	for rows.Next() {
 		var file FileInfo
 		if err := rows.Scan(&file.ID, &file.Name, &file.MimeType, &file.Timestamp, &file.Size); err != nil {
-			return nil, fmt.Errorf("failed to scan file: %w", err)
+			log("failed to scan file: %w", err)
+			return nil, errGetSelected
 		}
-		files = append(files, file)
+		// step 2: filter retrieved files to the subset defined by fileIDs.
+		// in this case, we only append to slice `files` if file.ID matches one of the ids in fileIDs.
+		for _, fid := range fileIDs {
+			if file.ID == fid {
+				files = append(files, file)
+				break
+			}
+		}
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating files: %w", err)
+		log("error iterating files: %w", err)
+		return nil, errGetSelected
 	}
 
 	return files, nil
 }
 
-// ExportSingleFile exports a single file to the specified directory
-func ExportSingleFile(db *sql.DB, dbKey []byte, id int64, tvault *os.File, exportDir string) (string, error) {
-	metadata, err := GetFileMetadataByID(db, id)
+var errDecrypt = errors.New("error decrypting file")
+func decryptAndGetFilename(db *sql.DB, fid int64, dbKey []byte, tvault *os.File) ([]byte, string, error) {
+	metadata, err := GetFileMetadataByID(db, fid)
 	if err != nil {
-		return "", err
+		log("error getting filemetadata %v", err)
+		return nil, "", errDecrypt
 	}
 
 	// Read encrypted data from TVault
 	encryptedData := make([]byte, metadata.Length)
 	_, err = tvault.ReadAt(encryptedData, metadata.Offset)
 	if err != nil {
-		return "", fmt.Errorf("failed to read file from TVault: %w", err)
+		log("failed to read file from TVault: %w", err)
+		return nil, "", errDecrypt
 	}
+	defer util.SecureZeroMemory(encryptedData)
 
 	// Generate file key and decrypt
 	fileKey := GenerateFileKey(metadata.UUID, dbKey)
 	decryptedData, err := authutils.DecryptData(encryptedData, fileKey)
 	if err != nil {
-		return "", fmt.Errorf("failed to decrypt file: %w", err)
+		log("failed to decrypt file: %w", err)
+		return nil, "", errDecrypt
 	}
 
+	inferredMIME := mimetype.Detect(decryptedData)
+	var detectedMIME string
+	if !inferredMIME.Is("application/octet-stream") {
+		detectedMIME = inferredMIME.String()
+	}
 	// Ensure filename has proper extension based on mimetype
-	fileName := EnsureFileExtension(metadata.Name, metadata.MimeType)
+	fileName := EnsureFileExtension(metadata.Name, detectedMIME, metadata.MimeType)
+	return decryptedData, fileName, nil
+}
+
+var errExportFile = errors.New("error exporting file")
+// ExportSingleFile exports a single file to the specified directory
+func ExportSingleFile(db *sql.DB, dbKey []byte, id int64, tvault *os.File, exportDir string) (string, error) {
+	decryptedData, fileName, err := decryptAndGetFilename(db, id, dbKey, tvault)
+	if err != nil {
+		return "", err
+		return "", errExportFile
+	}
+	defer util.SecureZeroMemory(decryptedData)
 
 	// Create unique filename in export directory
 	exportPath := CreateUniqueFilename(exportDir, fileName)
 
 	// Create the exported file
-	exportFile, err := os.Create(exportPath)
+	exportFile, err := util.NarrowCreate(exportPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to create export file: %w", err)
+		log("failed to create export file: %w", err)
+		return "", errExportFile
 	}
 	defer exportFile.Close()
 
 	// Write decrypted data to export file
 	_, err = exportFile.Write(decryptedData)
 	if err != nil {
-		return "", fmt.Errorf("failed to write to export file: %w", err)
+		log("failed to write to export file: %w", err)
+		return "", errExportFile
 	}
 
 	// Set appropriate file permissions
-	err = os.Chmod(exportPath, 0644)
+	err = os.Chmod(exportPath, util.USER_ONLY_FILE_PERMS)
 	if err != nil {
-		fmt.Printf("Failed to set file permissions for %s: %v", exportPath, err)
+		log("Failed to set file permissions for %s: %v", exportPath, err)
 	}
 
 	return exportPath, nil
 }
 
+var errCreateZip = errors.New("error creating zip")
 // CreateZipFile creates a ZIP file containing the specified files
 func CreateZipFile(db *sql.DB, dbKey []byte, folderName string, files []FileInfo, tvault *os.File, exportDir string) (string, error) {
 	// Create unique ZIP filename
@@ -389,9 +349,10 @@ func CreateZipFile(db *sql.DB, dbKey []byte, folderName string, files []FileInfo
 	zipPath := CreateUniqueFilename(exportDir, zipFileName)
 
 	// Create ZIP file
-	zipFile, err := os.Create(zipPath)
+	zipFile, err := util.NarrowCreate(zipPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to create ZIP file: %w", err)
+		log("failed to create ZIP file: %w", err)
+		return "", errCreateZip
 	}
 	defer zipFile.Close()
 
@@ -403,53 +364,41 @@ func CreateZipFile(db *sql.DB, dbKey []byte, folderName string, files []FileInfo
 	for _, file := range files {
 		err := AddFileToZip(db, dbKey, zipWriter, file, tvault)
 		if err != nil {
-			fmt.Printf("Failed to add file '%s' to ZIP: %v", file.Name, err)
+			log("Failed to add file '%s' to ZIP: %v", file.Name, err)
 			continue // Continue with other files
 		}
 	}
 
 	// Set appropriate file permissions
-	if err := os.Chmod(zipPath, 0644); err != nil {
-		fmt.Printf("Failed to set ZIP file permissions: %v", err)
+	if err := os.Chmod(zipPath, util.USER_ONLY_FILE_PERMS); err != nil {
+		log("Failed to set ZIP file permissions: %v", err)
 	}
 
 	return zipPath, nil
 }
 
+var errAddFileZip = errors.New("error adding file to zip")
 // AddFileToZip adds a single file to an existing ZIP writer
 func AddFileToZip(db *sql.DB, dbKey []byte, zipWriter *zip.Writer, file FileInfo, tvault *os.File) error {
-	// Get file metadata for decryption
-	metadata, err := GetFileMetadataByID(db, file.ID)
+	decryptedData, fileName, err := decryptAndGetFilename(db, file.ID, dbKey, tvault)
 	if err != nil {
-		return fmt.Errorf("failed to get metadata for file %d: %w", file.ID, err)
+		log("error adding file to zip %v", err)
+		return errAddFileZip
 	}
-
-	// Read and decrypt file
-	encryptedData := make([]byte, metadata.Length)
-	_, err = tvault.ReadAt(encryptedData, metadata.Offset)
-	if err != nil {
-		return fmt.Errorf("failed to read encrypted data: %w", err)
-	}
-
-	fileKey := GenerateFileKey(metadata.UUID, dbKey)
-	decryptedData, err := authutils.DecryptData(encryptedData, fileKey)
-	if err != nil {
-		return fmt.Errorf("failed to decrypt file: %w", err)
-	}
-
-	// Ensure filename has proper extension for ZIP entry
-	fileName := EnsureFileExtension(file.Name, file.MimeType)
+	defer util.SecureZeroMemory(decryptedData)
 
 	// Create file in ZIP
 	fileWriter, err := zipWriter.Create(fileName)
 	if err != nil {
-		return fmt.Errorf("failed to create file in ZIP: %w", err)
+		log("failed to create file in ZIP: %w", err)
+		return errAddFileZip
 	}
 
 	// Write decrypted data to ZIP entry
 	_, err = fileWriter.Write(decryptedData)
 	if err != nil {
-		return fmt.Errorf("failed to write file data to ZIP: %w", err)
+		log("failed to write file data to ZIP: %w", err)
+		return errAddFileZip
 	}
 
 	return nil
@@ -465,29 +414,34 @@ func RecordTempFile(db *sql.DB, fileID int64, tempPath string) error {
 	return err
 }
 
+var errOverwriteData = errors.New("error overwriting data")
 // Delete files
 func SecurelyOverwriteFileData(tvaultPath string, offset, length int64) error {
-	file, err := os.OpenFile(tvaultPath, os.O_WRONLY, 0600)
+	file, err := os.OpenFile(tvaultPath, os.O_WRONLY, util.USER_ONLY_FILE_PERMS)
 	if err != nil {
-		return fmt.Errorf("failed to open TVault for writing: %w", err)
+		log("failed to open TVault for writing: %v", err)
+		return errOverwriteData
 	}
 	defer file.Close()
 
 	// Generate random data to overwrite the file content
 	randomData := make([]byte, length)
 	if _, err := rand.Read(randomData); err != nil {
-		return fmt.Errorf("failed to generate random data: %w", err)
+		log("failed to generate random data: %v", err)
+		return errOverwriteData
 	}
 
 	// Overwrite the file data at the specified offset
 	_, err = file.WriteAt(randomData, offset)
 	if err != nil {
-		return fmt.Errorf("failed to overwrite file data: %w", err)
+		log("failed to overwrite file data: %v", err)
+		return errOverwriteData
 	}
 
 	// Force write to disk
 	if err := file.Sync(); err != nil {
-		return fmt.Errorf("failed to sync file changes: %w", err)
+		log("failed to sync file changes: %v", err)
+		return errOverwriteData
 	}
 
 	return nil
@@ -501,69 +455,66 @@ func AddFreeSpace(tx *sql.Tx, offset, length int64) error {
 	`, offset, length)
 
 	if err != nil {
-		return fmt.Errorf("failed to add free space record: %w", err)
+		log("failed to add free space record: %v", err)
+		return fmt.Errorf("failed to record free space")
 	}
 
 	return nil
 }
 
+var errGetFileMetadataDeletion = errors.New("error getting file metadata for deletion")
 // GetFileMetadataForDeletion retrieves file metadata needed for deletion
 func GetFileMetadataForDeletion(tx *sql.Tx, ids []int64) ([]FileMetadata, error) {
 	if len(ids) == 0 {
-		return nil, fmt.Errorf("no file IDs provided")
+		log("no file IDs provided")
+		return nil, errGetFileMetadataDeletion
 	}
 
-	// Create placeholders for SQL IN clause
-	placeholders := make([]string, len(ids))
-	args := make([]interface{}, len(ids))
-
-	for i, id := range ids {
-		placeholders[i] = "?"
-		args[i] = id
-	}
-
-	query := fmt.Sprintf(`
-		SELECT id, uuid, name, size, folder_id, offset, length, created_at 
+	metadataQuery := `
+		SELECT uuid, name, size, folder_id, offset, length, created_at 
 		FROM files 
-		WHERE id IN (%s) AND is_deleted = 0
-	`, strings.Join(placeholders, ","))
+		WHERE id = ? AND is_deleted = 0
+	`
 
-	rows, err := tx.Query(query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query file metadata: %w", err)
-	}
-	defer rows.Close()
-
+	// NOTE: we iteratively execute the static sql query to eliminate SQLi risk from dynamic query construction
+	// TODO cblgh(2026-02-09): gather up all of these queries and execute in a batch?
 	var filesMetadata []FileMetadata
-	for rows.Next() {
+
+	for _, fileID := range ids {
 		var metadata FileMetadata
+		metadata.ID = fileID
 		var createdAtStr string
 
-		err := rows.Scan(
-			&metadata.ID, &metadata.UUID, &metadata.Name,
+		err := tx.QueryRow(metadataQuery, fileID).Scan(
+			&metadata.UUID, &metadata.Name,
 			&metadata.Size, &metadata.FolderID, &metadata.Offset,
 			&metadata.Length, &createdAtStr,
 		)
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan file metadata: %w", err)
+		// TODO cblgh(2026-02-09): decide how best to handle these errors now that we're iterating; terminating too early
+		// would be bad and risk disabling the program if a file is malformed / returns an error
+		switch {
+		case err == sql.ErrNoRows:
+			log("no file with id %d\n", fileID)
+		case err != nil:
+			log("failed to query file metadata: %v", err)
 		}
 
 		// Parse timestamp - try RFC3339 first, then fallback to SQLite format
-		createdAt, err := time.Parse(time.RFC3339, createdAtStr)
-		if err != nil {
-			createdAt, err = time.Parse("2006-01-02 15:04:05", createdAtStr)
-			if err != nil {
-				createdAt = time.Now()
+		timeFormats := []string{time.RFC3339, "2006-01-02 15:04:05"}
+		var createdAt time.Time
+		for _, timeFmt := range timeFormats {
+			createdAt, err = time.Parse(timeFmt, createdAtStr)
+			if err == nil {
+				break
 			}
+		}
+		if createdAt.IsZero() {
+			createdAt = time.Now()
 		}
 		metadata.CreatedAt = createdAt
 
 		filesMetadata = append(filesMetadata, metadata)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating file metadata: %w", err)
 	}
 
 	return filesMetadata, nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"errors"
 
 	"Tella-Desktop/backend/core/database"
 	"Tella-Desktop/backend/core/modules/auth"
@@ -12,7 +13,10 @@ import (
 	"Tella-Desktop/backend/core/modules/server"
 	"Tella-Desktop/backend/core/modules/transfer"
 	"Tella-Desktop/backend/utils/authutils"
+	"Tella-Desktop/backend/utils/config"
 	"Tella-Desktop/backend/utils/network"
+	"Tella-Desktop/backend/utils/nonces"
+	"Tella-Desktop/backend/utils/devlog"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -21,6 +25,7 @@ import (
 type App struct {
 	ctx                 context.Context
 	db                  *database.DB
+	nonceManager        *nonces.NonceManager
 	authService         auth.Service
 	registrationService registration.Service
 	registrationHandler *registration.Handler
@@ -30,24 +35,32 @@ type App struct {
 	defaultFolderID     int64
 }
 
+var log = devlog.Logger("app")
+
 // Auth related methods to expose to frontend
 func (a *App) IsFirstTimeSetup() bool {
 	return a.authService.IsFirstTimeSetup()
 }
 
+// TODO cblgh(2026-02-12): authService.CreatePassword currently unlocks the database. should it?
 func (a *App) CreatePassword(password string) error {
-	err := a.authService.CreatePassword((password))
+	err := a.authService.CreatePassword(password)
 	if err != nil {
 		return err
 	}
 
-	if err := a.initializeDatabase(); err != nil {
-		runtime.LogError(a.ctx, "Failed to initialize database during setup: "+err.Error())
+	if err := a.initializeServices(); err != nil {
+		log("Failed to initialize database during setup: %s", err)
 		return err
 	}
 
-	runtime.LogInfo(a.ctx, "Database created and encrypted successfully")
+	log("Database created and encrypted successfully")
 	return nil
+}
+
+func (a *App) GetDefaultPort() int {
+	conf := config.ReadConfig()
+	return conf.Port
 }
 
 func (a *App) VerifyPassword(password string) error {
@@ -59,8 +72,8 @@ func (a *App) VerifyPassword(password string) error {
 
 	// Initialize database after successful password verification
 	if a.db == nil {
-		if err := a.initializeDatabase(); err != nil {
-			runtime.LogError(a.ctx, "Failed to initialize database after login: "+err.Error())
+		if err := a.initializeServices(); err != nil {
+			log("Failed to initialize database after login: %s", err)
 			return err
 		}
 	}
@@ -82,27 +95,30 @@ func (a *App) Startup(ctx context.Context) {
 		runtime.LogFatalf(ctx, "Failed to initialize auth service: %v", err)
 		return
 	}
-
-	a.registrationService = registration.NewService(a.ctx)
-	a.registrationHandler = registration.NewHandler(a.registrationService, a.ctx)
+	a.nonceManager = nonces.NewNonceManager()
 }
+
+var errRegistrationNotInit = errors.New("registration handler not initialized")
 
 func (a *App) ConfirmRegistration() error {
 	if a.registrationHandler == nil {
-		return fmt.Errorf("registration handler not initialized")
+		return errRegistrationNotInit
 	}
 	return a.registrationHandler.ConfirmRegistration()
 }
 
 func (a *App) RejectRegistration() error {
 	if a.registrationHandler == nil {
-		return fmt.Errorf("registration handler not initialized")
+		return errRegistrationNotInit
 	}
 	return a.registrationHandler.RejectRegistration()
 }
 
 // Helper method to initialize the database with encryption
-func (a *App) initializeDatabase() error {
+func (a *App) initializeServices() error {
+	a.registrationService = registration.NewService(a.ctx)
+	a.registrationHandler = registration.NewHandler(a.registrationService, a.ctx)
+
 	// Get database key from auth service
 	dbKey, err := a.authService.GetDBKey()
 	if err != nil {
@@ -117,22 +133,26 @@ func (a *App) initializeDatabase() error {
 	}
 
 	a.db = db
-	runtime.LogInfo(a.ctx, "Database initialized successfully with encryption")
+	log("Database initialized successfully with encryption")
 
 	// Create default folder for uploads if it doesn't exist
 	defaultFolder, err := a.ensureDefaultFolder(db.DB)
 	if err != nil {
-		runtime.LogError(a.ctx, "Failed to create default folder: "+err.Error())
+		log("Failed to create default folder: %s", err)
 		return err
 	}
 	a.defaultFolderID = defaultFolder
 
 	// Initialize filestore service with database and encryption key
 	a.fileService = filestore.NewService(a.ctx, db.DB, dbKey)
-	runtime.LogInfo(a.ctx, "File storage service initialized")
+	log("File storage service initialized")
 
-	a.transferService = transfer.NewService(a.ctx, a.fileService, db.DB)
-	runtime.LogInfo(a.ctx, "Transfer service initialized")
+	// we pass the transfer service two functions from registration in:
+	// 1. registration.SessionIsValid, in order to check if an incoming session ID matches what was saved during the register step
+	// 2. registration.ForgetSession, which mitigates memory leaks by being called as part of the transfer service's
+	//    session management cleanup
+	a.transferService = transfer.NewService(a.ctx, a.fileService, db.DB, a.registrationService.SessionIsValid, a.registrationService.ForgetSession)
+	log("Transfer service initialized")
 
 	// Re-initialize transfer and server services with filestore service
 	a.serverService = server.NewService(
@@ -142,6 +162,7 @@ func (a *App) initializeDatabase() error {
 		a.transferService,
 		a.fileService,
 		a.defaultFolderID,
+		a.nonceManager,
 	)
 	return nil
 }
@@ -198,59 +219,56 @@ func (a *App) GetLocalIPs() ([]string, error) {
 	return network.GetLocalIPs()
 }
 
-func (a *App) GetWiFiNetworkName() (string, error) {
-	return network.GetWiFiNetworkName()
-}
-
 // Filestore functions
 
+var errFileServiceNotInit = errors.New("file service not initialized")
 func (a *App) GetStoredFolders() ([]filestore.FolderInfo, error) {
 	if a.fileService == nil {
-		return nil, fmt.Errorf("file service not initialized")
+		return nil, errFileServiceNotInit
 	}
 	return a.fileService.GetStoredFolders()
 }
 
 func (a *App) GetFilesInFolder(folderID int64) (*filestore.FilesInFolderResponse, error) {
 	if a.fileService == nil {
-		return nil, fmt.Errorf("file service not initialized")
+		return nil, errFileServiceNotInit
 	}
 	return a.fileService.GetFilesInFolder(folderID)
 }
 
 func (a *App) ExportFiles(ids []int64) ([]string, error) {
 	if a.fileService == nil {
-		return nil, fmt.Errorf("file service not initialized")
+		return nil, errFileServiceNotInit
 	}
 	return a.fileService.ExportFiles(ids)
 }
 
 func (a *App) ExportZipFolders(folderIDs []int64, selectedFileIDs []int64) ([]string, error) {
 	if a.fileService == nil {
-		return nil, fmt.Errorf("file service not initialized")
+		return nil, errFileServiceNotInit
 	}
 	return a.fileService.ExportZipFolders(folderIDs, selectedFileIDs)
 }
 
 func (a *App) DeleteFiles(ids []int64) error {
 	if a.fileService == nil {
-		runtime.LogError(a.ctx, "file service not initialized")
-		return fmt.Errorf("file service not initialized")
+		log("file service not initialized")
+		return errFileServiceNotInit
 	}
 
 	err := a.fileService.DeleteFiles(ids)
 	if err != nil {
-		runtime.LogError(a.ctx, fmt.Sprintf("DeleteFiles failed: %v", err))
+		log("DeleteFiles failed: %v", err)
 		return err
 	}
 
-	runtime.LogInfo(a.ctx, "DeleteFiles completed successfully")
+	log("DeleteFiles completed successfully")
 	return nil
 }
 
 func (a *App) DeleteFolders(folderIDs []int64) error {
 	if a.fileService == nil {
-		return fmt.Errorf("file service not initialized")
+		return errFileServiceNotInit
 	}
 	return a.fileService.DeleteFolders(folderIDs)
 }
@@ -270,12 +288,22 @@ func (a *App) RejectTransfer(sessionID string) error {
 	return a.transferService.RejectTransfer(sessionID)
 }
 
+// called when a transfer is either stopped by the receipient or when it has reached a state of being finished (no
+// pending files)
+func (a *App) StopTransfer(sessionID string) error {
+	if a.transferService == nil {
+		return fmt.Errorf("transfer service not initialized")
+	}
+	a.transferService.StopTransfer(sessionID)
+	return nil
+}
+
 // LockApp locks the application by closing database and clearing auth state
 func (a *App) LockApp() error {
 	// Stop the server if it's running
 	if a.serverService != nil && a.serverService.IsRunning() {
 		if err := a.serverService.Stop(a.ctx); err != nil {
-			runtime.LogError(a.ctx, "Failed to stop server during lock: "+err.Error())
+			log("Failed to stop server during lock: %s", err)
 		}
 	}
 
@@ -283,9 +311,13 @@ func (a *App) LockApp() error {
 	if a.db != nil {
 		a.db.Close()
 		a.db = nil
-		runtime.LogInfo(a.ctx, "Database connection closed for lock")
+		log("Database connection closed for lock")
 	}
 
+	// call lock on services with long-running goroutines for clearing memory to release any long-lived references &&
+	// clear held memory
+	a.transferService.Lock()
+	a.registrationService.Lock()
 	// Clear services that depend on database
 	a.fileService = nil
 	a.transferService = nil
@@ -297,6 +329,6 @@ func (a *App) LockApp() error {
 		a.authService.ClearSession()
 	}
 
-	runtime.LogInfo(a.ctx, "Application locked successfully")
+	log("Application locked successfully")
 	return nil
 }

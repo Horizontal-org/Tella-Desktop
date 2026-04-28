@@ -3,14 +3,18 @@ package registration
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"sync"
+	"errors"
 	"time"
+
+	"Tella-Desktop/backend/utils/devlog"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+var log = devlog.Logger("registration")
 
 type PendingRegistration struct {
 	PIN      string
@@ -70,7 +74,7 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("Raw registration request body: %s\n", string(requestBody))
+	log("Raw registration request body: %s\n", string(requestBody))
 
 	var request struct {
 		PIN   string `json:"pin"`
@@ -78,7 +82,7 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.Unmarshal(requestBody, &request); err != nil {
-		fmt.Printf("Error decoding request: %v\n", err)
+		log("Error decoding request: %v\n", err)
 		http.Error(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
@@ -116,7 +120,8 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		h.mu.Unlock()
 
 	case err := <-h.pendingRegistration.Error:
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		log("error registration %v", err)
+		http.Error(w, "Invalid PIN", http.StatusUnauthorized)
 
 		h.mu.Lock()
 		h.pendingRegistration = nil
@@ -131,19 +136,21 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+var errConfirm = errors.New("confirmation error")
 func (h *Handler) ConfirmRegistration() error {
 	h.mu.RLock()
 	pending := h.pendingRegistration
 	h.mu.RUnlock()
 
 	if pending == nil {
-		return fmt.Errorf("no pending registration to confirm")
+		log("no pending registration to confirm")
+		return errConfirm
 	}
 
 	sessionID, err := h.service.CreateSession(pending.PIN, pending.Nonce)
 	if err != nil {
 		select {
-		case pending.Error <- err:
+		case pending.Error <- errConfirm:
 		default:
 		}
 		return err
@@ -157,23 +164,28 @@ func (h *Handler) ConfirmRegistration() error {
 	case pending.Response <- response:
 		return nil
 	default:
-		return fmt.Errorf("failed to send registration response")
+		log("failed to send registration response")
+		return errConfirm
 	}
 }
 
+var errReject = errors.New("reject registration")
 func (h *Handler) RejectRegistration() error {
 	h.mu.RLock()
 	pending := h.pendingRegistration
 	h.mu.RUnlock()
 
 	if pending == nil {
-		return fmt.Errorf("no pending registration to reject")
+		log("no pending registration to reject")
+		return errReject
 	}
 
 	select {
-	case pending.Error <- fmt.Errorf("registration rejected by user"):
+	case pending.Error <- errReject:
+		log("registration rejected by user")
 		return nil
 	default:
-		return fmt.Errorf("failed to send rejection")
+		log("failed to send rejection")
+		return errReject
 	}
 }

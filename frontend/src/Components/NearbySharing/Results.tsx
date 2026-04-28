@@ -1,21 +1,49 @@
 import styled from 'styled-components';
 
+import { sanitizeUGC } from "../../util/util"
+
 interface ResultsStepProps {
+  transferredFiles: number | undefined;
   totalFiles: number | undefined;
   folderTitle: string | undefined;
   onViewFiles: () => void;
 }
 
-export function ResultsStep({ totalFiles, folderTitle, onViewFiles }: ResultsStepProps) {
+// TODO cblgh(2026-02-19): implement the error versions of this screen
+//
+// check icon is an exclamation mark
+//
+// Title: Transfer interrupted
+// Message: x files were successfully received but an error interrupted the transfer and y files were not received.
+//
+// Received files are in the folder %q.
+//
+// buttons: [<icon> try again] [icon view files]
+
+// version for 0 files received:
+//
+// Title: Transfer interrupted
+// Message: An error interrupted the transfer and no files were received.
+//
+// buttons: [<icon> try again]
+//
+
+
+// NOTE cblgh (2026-03-03): the step subtitle currently deviates from the designs. a transfer interrupted screen needs
+// to be implemented, and then we can remove the "x out of y received" text.
+export function ResultsStep({ transferredFiles, totalFiles, folderTitle, onViewFiles }: ResultsStepProps) {
   return (
     <DeviceInfoCard>
       <ResultHeaderContainer>
         <CheckIcon>✓</CheckIcon>
       </ResultHeaderContainer>
       <ResultContent>
-        <StepTitle>Success!</StepTitle>
+        <StepTitle>Success</StepTitle>
         <StepSubtitle>
-          {totalFiles} files were successfully received and saved to the folder {folderTitle}
+          You have successfully received {transferredFiles} out of {totalFiles} from the sender.
+        </StepSubtitle>
+        <StepSubtitle>
+          Received files are in the folder "{sanitizeUGC(folderTitle || "Folder")}"
         </StepSubtitle>
       </ResultContent>
       <ButtonContainer>

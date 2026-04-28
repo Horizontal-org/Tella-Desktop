@@ -6,10 +6,14 @@ toolchain go1.24.1
 
 require (
 	github.com/adrg/xdg v0.5.3
+	github.com/cespare/pastedown v0.1.0
+	github.com/gabriel-vasile/mimetype v1.4.13
 	github.com/google/uuid v1.6.0
+	github.com/komkom/toml v0.1.2
 	github.com/matthewhartstonge/argon2 v1.2.0
 	github.com/mutecomm/go-sqlcipher/v4 v4.4.2
 	github.com/wailsapp/wails/v2 v2.10.2
+	gomod.cblgh.org/cerca v0.2.2
 )
 
 require (
@@ -39,6 +43,7 @@ require (
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/time v0.8.0 // indirect
 )
 
 // replace github.com/wailsapp/wails/v2 v2.9.2 => /Users/gusvalbuena/go/pkg/mod

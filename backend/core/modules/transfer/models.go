@@ -3,10 +3,10 @@ package transfer
 import "errors"
 
 type Transfer struct {
-	ID        string   `json:"id"`
-	SessionID string   `json:"sessionId"`
-	FileInfo  FileInfo `json:"fileInfo"`
-	Status    string   `json:"status"`
+	TransmissionID string   `json:"transmissionId"`
+	SessionID      string   `json:"sessionId"`
+	FileInfo       FileInfo `json:"fileInfo"`
+	Status         string   `json:"status"`
 }
 
 type FileInfo struct {
@@ -20,6 +20,7 @@ type FileInfo struct {
 type PrepareUploadRequest struct {
 	Title     string     `json:"title"`
 	SessionID string     `json:"sessionId"`
+	Nonce     string     `json:"nonce"`
 	Files     []FileInfo `json:"files"`
 }
 
@@ -43,12 +44,33 @@ type UploadResponse struct {
 	Success bool `json:"success"`
 }
 
+var ErrMandatoryParameterMissing = errors.New("mandatory parameter missing")
+
 func (r *PrepareUploadRequest) Validate() error {
 	if r.SessionID == "" {
 		return errors.New("sessionId is required")
 	}
+	if r.Nonce == "" {
+		return errors.New("nonce is required")
+	}
 	if len(r.Files) == 0 {
 		return errors.New("at least one file is required")
+	}
+
+	// TODO cblgh(2026-03-09): improve validation logic
+	// go through each file and make sure it has fields
+	//
+	// "id": "file-uuid",
+	// "fileName": "",
+	// "size": number,
+	// "sha256": "",
+	// "fileType": "application/pdf",
+	// "thumbnail": "thumbnail-data" (optional?)
+	for _, f := range r.Files {
+		if len(f.ID) == 0 || len(f.FileName) == 0 || f.Size == 0 || len(f.SHA256) == 0 ||
+		len(f.FileType) == 0 {
+			return ErrMandatoryParameterMissing
+		}
 	}
 	return nil
 }

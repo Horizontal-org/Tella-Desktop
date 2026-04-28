@@ -38,6 +38,10 @@ export function SignUp({ onLoginSuccess, initialError = '' }: SignUpProps) {
       setError("Password must be at least 6 characters long");
       return;
     }
+    if (password.length > 1000) {
+      setError("Password must not exceed 1000 characters in length");
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
@@ -76,6 +80,7 @@ export function SignUp({ onLoginSuccess, initialError = '' }: SignUpProps) {
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              maxLength={1000}
               placeholder="Enter password"
               disabled={loading}
             />
@@ -87,6 +92,7 @@ export function SignUp({ onLoginSuccess, initialError = '' }: SignUpProps) {
               type="password"
               id="confirmPassword"
               value={confirmPassword}
+              maxLength={1000}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirm password"
               disabled={loading}

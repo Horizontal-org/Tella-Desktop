@@ -2,6 +2,7 @@ package authutils
 
 import (
 	"Tella-Desktop/backend/utils/constants"
+	util "Tella-Desktop/backend/utils/genericutil"
 	"encoding/binary"
 	"io"
 	"os"
@@ -9,7 +10,7 @@ import (
 
 // Initialize the TVault file with the salt and encrypted db key
 func InitializeTVaultHeader(salt, encryptDBKey []byte) error {
-	file, err := os.Create(GetTVaultPath())
+	file, err := util.NarrowCreate(GetTVaultPath())
 	if err != nil {
 		return err
 	}

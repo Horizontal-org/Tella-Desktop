@@ -57,8 +57,8 @@ func TestGetTempDir(t *testing.T) {
 	expected := filepath.Join("/mock/xdg/cache", TellaAppName, TempDir)
 	result := GetTempDir()
 
-	if result != filepath.Dir(expected) {
-		t.Errorf("GetTempDir() = %v, want %v", result, filepath.Dir(expected))
+	if result != expected {
+		t.Errorf("GetTempDir() = %v, want %v", result, expected)
 	}
 }
 
