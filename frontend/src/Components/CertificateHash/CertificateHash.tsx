@@ -1,6 +1,7 @@
 // frontend/src/Components/CertificateHash/CertificateHash.tsx
 import React, { useState, useEffect } from 'react';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
+import { log } from "../../util/util"
 
 interface Props {
     serverRunning: boolean;
@@ -25,15 +26,15 @@ export function CertificateHash({ serverRunning }: Props) {
     const [certHash, setCertHash] = useState('');
 
     useEffect(() => {
-        console.log("Subscribing to certificate-hash events");
+        log("Subscribing to certificate-hash events");
 
         const cleanup = EventsOn("certificate-hash", (data) => {
-            console.log("Received certificate hash event:", data);
+            log("Received certificate hash event:", data);
             setCertHash(data.toString());
         });
 
         return () => {
-            console.log("Cleaning up certificate-hash subscription");
+            log("Cleaning up certificate-hash subscription");
             cleanup();
         };
     }, []);

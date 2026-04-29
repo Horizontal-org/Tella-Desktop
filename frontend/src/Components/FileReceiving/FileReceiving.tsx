@@ -3,7 +3,7 @@ import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import styled, { keyframes } from 'styled-components';
 import folderIcon from '../../assets/images/icons/folder-icon.svg'
 
-import { sanitizeUGC } from "../../util/util"
+import { sanitizeUGC, log } from "../../util/util"
 
 interface FileReceivingData {
   sessionId: string;
@@ -54,7 +54,7 @@ export function FileReceiving({ sessionId,
       fileSize: file.size
     }));
     setReceivingFiles(initialFiles);
-    console.log("🔄 Initialized FileReceiving with:", {
+    log("🔄 Initialized FileReceiving with:", {
       sessionId,
       transferTitle,
       totalFiles,
@@ -70,15 +70,15 @@ export function FileReceiving({ sessionId,
   //
   // i have verified that this problem is not present in release builds
   useEffect(() => {
-    console.log("Setting up FileReceiving event listeners for sessionId:", sessionId);
+    log("Setting up FileReceiving event listeners for sessionId:", sessionId);
 
     // Listen for individual file upload start events
     const cleanupReceiving = EventsOn("file-receiving", (data) => {
-      console.log("File receiving:", data);
+      log("File receiving:", data);
       const fileData = data as FileReceivingData;
       
       if (fileData.sessionId === sessionId) {
-        console.log("File receiving for our session:", fileData);
+        log("File receiving for our session:", fileData);
         setReceivingFiles(prev => {
           return prev.map(f => 
             f.fileId === fileData.fileId 
@@ -91,11 +91,11 @@ export function FileReceiving({ sessionId,
 
     // Listen for file upload completion events
     const cleanupReceived = EventsOn("file-received", (data) => {
-      console.log("✅ File received:", data);
+      log("✅ File received:", data);
       const fileData = data as FileReceivingData;
       
       if (fileData.sessionId === sessionId) {
-        console.log("✅ File completed for our session:", fileData);
+        log("✅ File completed for our session:", fileData);
         
         // Move from receiving to completed
         setReceivingFiles(prev => prev.filter(f => f.fileId !== fileData.fileId));
@@ -107,14 +107,14 @@ export function FileReceiving({ sessionId,
             if (fileData.fileSize) {
               setReceivedSize(prevSize => {
                 const newSize = prevSize + fileData.fileSize!;
-                console.log(`Updated receivedSize: ${newSize}/${totalSize}`);
+                log(`Updated receivedSize: ${newSize}/${totalSize}`);
                 return newSize;
               });
             }
 
-            console.log(`Progress: ${failedFiles.length + newCompleted.length}/${totalFiles} files completed`);
+            log(`Progress: ${failedFiles.length + newCompleted.length}/${totalFiles} files completed`);
             if ((failedFiles.length + newCompleted.length) === totalFiles && totalFiles > 0) {
-              console.log("🎉 All files completed!");
+              log("🎉 All files completed!");
               // TODO cblgh(2026-02-16): call down to the backend for a new fn "CleanupTransfer / AllFilesResolved". 
               setTimeout(() => onComplete(), 1000);
             }
@@ -127,11 +127,11 @@ export function FileReceiving({ sessionId,
 
     // Listen for file upload failure events
     const cleanupFailed = EventsOn("file-receive-failed", (data) => {
-      console.log("❌ File failed:", data);
+      log("❌ File failed:", data);
       const fileData = data as FileReceivingData;
       
       if (fileData.sessionId === sessionId) {
-        console.log("❌ File failed for our session:", fileData);
+        log("❌ File failed for our session:", fileData);
         
         // Move from receiving to failed
         setReceivingFiles(prev => prev.filter(f => f.fileId !== fileData.fileId));
@@ -141,7 +141,7 @@ export function FileReceiving({ sessionId,
             const newFailed = [...prev, fileData];
             
             if ((newFailed.length + completedFiles.length) === totalFiles && totalFiles > 0) {
-              console.log("🎉 All files completed!");
+              log("🎉 All files completed!");
               // TODO cblgh(2026-02-16): call down to the backend for a new fn "CleanupTransfer / AllFilesResolved". 
               setTimeout(() => onComplete(), 1000);
             }
@@ -154,7 +154,7 @@ export function FileReceiving({ sessionId,
 
     // Listen for file upload progress events
     const cleanupProgress = EventsOn("file-upload-progress", (data) => {
-      console.log("📈 File upload progress:", data);
+      log("📈 File upload progress:", data);
       const progressData = data as { 
         sessionId: string; 
         fileId: string; 
@@ -167,7 +167,7 @@ export function FileReceiving({ sessionId,
     // TODO cblgh(2026-02-16): event that is currently unused?
     // Listen for transfer cancellation
     const cleanupCancel = EventsOn("transfer-cancelled", (data) => {
-      console.log("❌ Transfer cancelled:", data);
+      log("❌ Transfer cancelled:", data);
       const cancelData = data as { sessionId: string };
       
       if (cancelData.sessionId === sessionId) {
@@ -178,7 +178,7 @@ export function FileReceiving({ sessionId,
     });
 
     return () => {
-      console.log("🧹 Cleaning up FileReceiving event listeners");
+      log("🧹 Cleaning up FileReceiving event listeners");
       cleanupReceiving();
       cleanupReceived();
       cleanupFailed();
@@ -198,7 +198,7 @@ export function FileReceiving({ sessionId,
   const currentFileNumber = completedFiles.length + (receivingFiles.length > 0 ? 1 : 0);
 
   const handleCancelTransfer = () => {
-    console.log("Cancel transfer requested for session:", sessionId);
+    log("Cancel transfer requested for session:", sessionId);
     // TODO cblgh(2026-02-16): bubble up call to backend for ending the transfer
     onStop();
   };

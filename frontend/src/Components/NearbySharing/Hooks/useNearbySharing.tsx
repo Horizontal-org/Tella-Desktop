@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { GetLocalIPs, RejectRegistration, ConfirmRegistration, StopTransfer } from "../../../../wailsjs/go/app/App";
 import { EventsOn } from "../../../../wailsjs/runtime/runtime";
 import { useServer } from "../../../Contexts/ServerContext";
+import { log } from "../../../util/util"
 
 type FlowStep = 'intro' | 'connect' | 'accept' | 'receive' | 'results';
 type ModalState = 'waiting' | 'confirm';
@@ -21,6 +22,11 @@ interface TransferData {
   totalFiles: number;
   transferredFiles: number;
   totalSize: number;
+}
+
+interface CloseConnectionData {
+  sessionId: string;
+  transferOngoing: boolean;
 }
 
 export function useNearbySharing() {
@@ -60,21 +66,21 @@ export function useNearbySharing() {
     fetchNetworkInfo();
 
     const cleanupPingListener = EventsOn("ping-received", (data) => {
-      console.log("Ping received from iOS device:", data);
+      log("Ping received from iOS device:", data);
       setShowVerificationModal(true);
       setModalState('waiting')
     });
 
     const cleanupRegisterListener = EventsOn("register-request-received", (data) => {
-      console.log("Register request received:", data);
-      console.log("Current QR mode:", isUsingQRModeRef.current);
+      log("Register request received:", data);
+      log("Current QR mode:", isUsingQRModeRef.current);
 
       if (isUsingQRModeRef.current) {
-        console.log("🔗 QR mode active - auto-confirming registration");
+        log("🔗 QR mode active - auto-confirming registration");
         // Auto-confirm for QR mode
         ConfirmRegistration()
           .then(() => {
-            console.log("✅ QR registration confirmed successfully");
+            log("✅ QR registration confirmed successfully");
             setCurrentStep('accept');
           })
           .catch((error) => {
@@ -84,19 +90,19 @@ export function useNearbySharing() {
             setShowVerificationModal(true);
           });
       } else {
-        console.log("📱 Manual mode - showing confirmation modal");
+        log("📱 Manual mode - showing confirmation modal");
         // Manual mode - show certificate verification modal
         setModalState('confirm');
       }
     });
 
     const cleanupCertListener = EventsOn("certificate-hash", (data) => {
-      console.log("Certificate hash received:", data);
+      log("Certificate hash received:", data);
       setCertificateHash(data.toString());
     });
 
     const cleanupPrepareRequest = EventsOn("prepare-upload-request", (data) => {
-      console.log("📨 Received prepare upload request in parent:", data);
+      log("📨 Received prepare upload request in parent:", data);
       const requestData = data as TransferData;
       setTransferData(requestData);
       setCurrentSessionId(requestData.sessionId);
@@ -112,12 +118,25 @@ export function useNearbySharing() {
       })
     })
 
+    const cleanupCloseConnection = EventsOn("close-connection", async (data) => {
+      log("XX Received close-connection", data);
+      const connectionData = data as CloseConnectionData;
+      await stopServer();
+      if (connectionData.transferOngoing) {
+          // TODO cblgh(2026-04-29): set currentStep to something like results-error?
+          setCurrentStep('results');
+      } else {
+          setCurrentStep('intro');
+      }
+    });
+
     return () => {
       cleanupFileReceived();
       cleanupPingListener();
       cleanupRegisterListener();
       cleanupCertListener();
       cleanupPrepareRequest();
+      cleanupCloseConnection();
     };
   }, []);
 
@@ -136,7 +155,7 @@ export function useNearbySharing() {
 
   // Certificate verification handlers
   const handleVerificationConfirm = async () => {
-    console.log("✅ Certificate verification CONFIRMED");
+    log("✅ Certificate verification CONFIRMED");
     try {
       await ConfirmRegistration();
       setShowVerificationModal(false);
@@ -149,7 +168,7 @@ export function useNearbySharing() {
   };
 
   const handleVerificationDiscard = async () => {
-    console.log("❌ Certificate verification DISCARDED");
+    log("❌ Certificate verification DISCARDED");
     try {
       await RejectRegistration();
     } catch (error) {
@@ -180,25 +199,25 @@ export function useNearbySharing() {
 
   // File transfer handlers
   const handleFileRequestAccept = (sessionId: string) => {
-    console.log("📝 File request accepted for session:", sessionId);
+    log("📝 File request accepted for session:", sessionId);
     setCurrentSessionId(sessionId);
     setCurrentStep('receive');
   };
 
   const handleFileRequestReject = () => {
-    console.log("❌ File request rejected");
+    log("❌ File request rejected");
     setTransferData(null);
-    setCurrentSessionId('');
-    setCurrentStep('connect');
+    // go back to previous screen and allow resending
+    setCurrentStep('accept');
   };
 
   const handleFileReceiving = () => {
-    console.log("📥 File receiving started");
+    log("📥 File receiving started");
     setCurrentStep('receive');
   };
 
   const handleReceiveComplete = async () => {
-    console.log("✅ File receiving completed");
+    log("✅ File receiving completed");
     // all files have been handled (either completely transferred or failed) we can close the transfer session
     await StopTransfer(currentSessionId);
     // the file receiving is complete, stop the server
@@ -210,7 +229,7 @@ export function useNearbySharing() {
 
   // called when "stop transfer" is clicked in the middle of an ongoing transfer
   const handleStopTransfer = async () => {
-    console.log("❌ File transfer stopped");
+    log("❌ File transfer stopped");
     // stop the http server
     if (serverRunning) {
       await handleStopServer();
@@ -221,7 +240,7 @@ export function useNearbySharing() {
   }
 
   const handleViewFiles = async () => {
-    console.log("📁 View files clicked - stopping server and navigating");
+    log("📁 View files clicked - stopping server and navigating");
     if (serverRunning) {
       await handleStopServer();
     }
@@ -259,7 +278,7 @@ export function useNearbySharing() {
     handleQRModeChange: (isQR: boolean) => {
       setIsUsingQRMode(isQR);
       isUsingQRModeRef.current = isQR;
-      console.log("QR mode changed to:", isQR);
+      log("QR mode changed to:", isQR);
     },
     
     // Actions

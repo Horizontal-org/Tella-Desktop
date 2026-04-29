@@ -126,7 +126,7 @@ func (s *service) PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadRe
 	case err := <-pendingTransfer.ErrorChan:
 		s.pendingTransfers.Delete(request.SessionID)
 		log("%v", err)
-		return nil, errPrepareUpload
+		return nil, transferutils.ErrTransferRejected
 	case <-s.done:
 		s.pendingTransfers.Delete(request.SessionID)
 		log("request timeout - connection was closed by recipient")
@@ -443,7 +443,16 @@ func (s *service) CloseConnection(sessionID string) error {
 	if !s.sessionIsValid(sessionID) {
 		return transferutils.ErrInvalidSession
 	}
-	// TODO cblgh(2026-02-16): other than forget transfer session state, what else should we do on close connection?
+
+	// if we have a <sessionID>_session stored, then that means we have a transfer ongoing ->
+	// we can use this information to differentiate in the frontend what screen we should pop back to on close-connection
+	// being fired
+	_, transferOngoing := s.transfers.Load(sessionID+"_session")
+	runtime.EventsEmit(s.ctx, "close-connection", map[string]interface{}{
+		"sessionId":        sessionID,
+		"transferOngoing":  transferOngoing,
+	})
+
 	s.endTransfer(sessionID)
 	return nil
 }

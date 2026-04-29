@@ -50,6 +50,10 @@ export function GetStoredFolders() {
   return window['go']['app']['App']['GetStoredFolders']();
 }
 
+export function IsDevelopment() {
+  return window['go']['app']['App']['IsDevelopment']();
+}
+
 export function IsFirstTimeSetup() {
   return window['go']['app']['App']['IsFirstTimeSetup']();
 }

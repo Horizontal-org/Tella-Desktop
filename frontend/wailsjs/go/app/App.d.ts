@@ -27,6 +27,8 @@ export function GetServerPIN():Promise<string>;
 
 export function GetStoredFolders():Promise<Array<filestore.FolderInfo>>;
 
+export function IsDevelopment():Promise<boolean>;
+
 export function IsFirstTimeSetup():Promise<boolean>;
 
 export function IsServerRunning():Promise<boolean>;

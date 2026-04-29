@@ -5,7 +5,7 @@ import (
 )
 
 func Log(usageContext, msg string, args ...interface{}) {
-	if isDevelop() {
+	if IsDevelop() {
 		line := fmt.Sprintf(msg)
 		if len(args) > 0 {
 			line = fmt.Sprintf(msg, args...)

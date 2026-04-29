@@ -6,7 +6,7 @@ import folderIcon from '../../assets/images/icons/folder-icon.svg'
 import downloadIcon from '../../assets/images/icons/download-icon.svg'
 import clockIcon from '../../assets/images/icons/clock-icon.svg'
 
-import { sanitizeUGC } from "../../util/util"
+import { sanitizeUGC, log } from "../../util/util"
 
 interface FileInfo {
   id: string;
@@ -35,12 +35,12 @@ export function FileRequest({ onAccept, onReject, onReceiving }: FileRequestProp
 
   useEffect(() => {
     const cleanupPrepareRequest = EventsOn("prepare-upload-request", (data) => {
-      console.log("Received prepare upload request:", data);
+      log("Received prepare upload request:", data);
       setRequestData(data as FileRequestData);
     });
 
     const cleanupFileReceiving = EventsOn("file-receiving", (data) => {
-      console.log("File receiving:", data);
+      log("File receiving:", data);
       onReceiving();
     });
 
