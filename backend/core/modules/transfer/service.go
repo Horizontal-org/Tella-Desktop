@@ -443,13 +443,15 @@ func (s *service) CloseConnection(sessionID string) error {
 	if !s.sessionIsValid(sessionID) {
 		return transferutils.ErrInvalidSession
 	}
+
+	// if we have a <sessionID>_session stored, then that means we have a transfer ongoing ->
+	// we can use this information to differentiate in the frontend what screen we should pop back to on close-connection
+	// being fired
+	_, transferOngoing := s.transfers.Load(sessionID+"_session")
+	log("is transfer ongoing? %t", transferOngoing)
 	runtime.EventsEmit(s.ctx, "close-connection", map[string]interface{}{
 		"sessionId":        sessionID,
-		"title":            "TODOTITLE", // request.Title,
-		"files":            []FileInfo{}, //request.Files,
-		"totalFiles":       0, // len(request.Files),
-		"transferredFiles": 0,
-		"totalSize":        0, // s.calculateTotalSize(request.Files),
+		"transferOngoing":  transferOngoing,
 	})
 
 	// TODO cblgh(2026-02-16): other than forget transfer session state, what else should we do on close connection?

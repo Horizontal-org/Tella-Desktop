@@ -23,6 +23,11 @@ interface TransferData {
   totalSize: number;
 }
 
+interface CloseConnectionData {
+  sessionId: string;
+  transferOngoing: boolean;
+}
+
 export function useNearbySharing() {
   const navigate = useNavigate();
   const { isRunning: serverRunning, isStarting: isStartingServer, startServer, stopServer } = useServer();
@@ -112,11 +117,16 @@ export function useNearbySharing() {
       })
     })
 
-    const cleanupCloseConnection = EventsOn("close-connection", async () => {
-      console.log("XX Received close-connection");
+    const cleanupCloseConnection = EventsOn("close-connection", async (data) => {
+      console.log("XX Received close-connection", data);
+      const connectionData = data as CloseConnectionData;
       await stopServer();
-      // TODO cblgh(2026-04-29): set currentStep to something like results-error?
-      setCurrentStep('results');
+      if (connectionData.transferOngoing) {
+          // TODO cblgh(2026-04-29): set currentStep to something like results-error?
+          setCurrentStep('results');
+      } else {
+          setCurrentStep('intro');
+      }
     });
 
     return () => {
