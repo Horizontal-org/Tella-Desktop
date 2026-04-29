@@ -102,6 +102,9 @@ func (h *Handler) HandlePrepare(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, transferutils.ErrTransferTooLarge) {
 			httpErrCode = http.StatusRequestEntityTooLarge
 			errMessage = "Content too large"
+		} else if errors.Is(err, transferutils.ErrTransferRejected) {
+			httpErrCode = http.StatusForbidden
+			errMessage = "Rejected"
 		} else if errors.Is(err, transferutils.ErrInvalidSession) {
 			// return 401
 			httpErrCode = http.StatusUnauthorized

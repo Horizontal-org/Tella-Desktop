@@ -188,8 +188,8 @@ export function useNearbySharing() {
   const handleFileRequestReject = () => {
     console.log("❌ File request rejected");
     setTransferData(null);
-    setCurrentSessionId('');
-    setCurrentStep('connect');
+    // go back to previous screen and allow resending
+    setCurrentStep('accept');
   };
 
   const handleFileReceiving = () => {

@@ -126,7 +126,7 @@ func (s *service) PrepareUpload(request *PrepareUploadRequest) (*PrepareUploadRe
 	case err := <-pendingTransfer.ErrorChan:
 		s.pendingTransfers.Delete(request.SessionID)
 		log("%v", err)
-		return nil, errPrepareUpload
+		return nil, transferutils.ErrTransferRejected
 	case <-s.done:
 		s.pendingTransfers.Delete(request.SessionID)
 		log("request timeout - connection was closed by recipient")
