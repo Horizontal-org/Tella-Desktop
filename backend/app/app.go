@@ -42,6 +42,11 @@ func (a *App) IsFirstTimeSetup() bool {
 	return a.authService.IsFirstTimeSetup()
 }
 
+
+func (a *App) IsDevelopment() bool {
+	return devlog.IsDevelop()
+}
+
 // TODO cblgh(2026-02-12): authService.CreatePassword currently unlocks the database. should it?
 func (a *App) CreatePassword(password string) error {
 	err := a.authService.CreatePassword(password)

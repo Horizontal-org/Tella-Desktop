@@ -1,6 +1,6 @@
 //go:build !production
 
 package devlog
-func isDevelop() bool {
+func IsDevelop() bool {
 	return true
 }

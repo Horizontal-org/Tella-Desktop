@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
 import { StartServer, StopServer, GetDefaultPort } from '../../wailsjs/go/app/App';
+import { log } from "../util/util"
 
 interface ServerContextValue {
   isRunning: boolean;
@@ -36,9 +37,9 @@ export function ServerProvider({ children }: ServerProviderProps) {
     setServerPort(defaultPort)
     if (serverStateRef.current.isRunning || serverStateRef.current.isStarting) {
       if (serverStateRef.current.isRunning) {
-          console.log("Server is already running");
+          log("Server is already running");
       } else if (serverStateRef.current.isStarting) {
-          console.log("Server is starting up");
+          log("Server is starting up");
       }
       return serverStateRef.current.isRunning || serverStateRef.current.isStarting;
     }
@@ -71,7 +72,7 @@ export function ServerProvider({ children }: ServerProviderProps) {
 
   const stopServer = useCallback(async (): Promise<boolean> => {
     if (!serverStateRef.current.isRunning) {
-      console.log('Server not running, nothing to stop');
+      log('Server not running, nothing to stop');
       return true;
     }
 
