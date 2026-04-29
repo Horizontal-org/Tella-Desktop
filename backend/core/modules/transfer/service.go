@@ -443,8 +443,19 @@ func (s *service) CloseConnection(sessionID string) error {
 	if !s.sessionIsValid(sessionID) {
 		return transferutils.ErrInvalidSession
 	}
+	runtime.EventsEmit(s.ctx, "close-connection", map[string]interface{}{
+		"sessionId":        sessionID,
+		"title":            "TODOTITLE", // request.Title,
+		"files":            []FileInfo{}, //request.Files,
+		"totalFiles":       0, // len(request.Files),
+		"transferredFiles": 0,
+		"totalSize":        0, // s.calculateTotalSize(request.Files),
+	})
+
 	// TODO cblgh(2026-02-16): other than forget transfer session state, what else should we do on close connection?
 	s.endTransfer(sessionID)
+
+	// TODO cblgh(2026-02-16): should "close connection" ultimately also stop the https server?
 	return nil
 }
 

@@ -35,6 +35,7 @@ type closeInfo struct {
 // TODO cblgh(2026-02-16): this route, and the methods it calls, is currently a semi-functional stub. It could do with some more work after the
 // other audit fixes are taking care of.
 func (h *Handler) HandleCloseConnection(w http.ResponseWriter, r *http.Request) {
+	log("close-connection: '%s request'", r.Method)
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -66,7 +67,6 @@ func (h *Handler) HandleCloseConnection(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	// TODO cblgh(2026-02-16): should "close connection" ultimately also stop the https server?
 }
 
 func (h *Handler) HandlePrepare(w http.ResponseWriter, r *http.Request) {

@@ -112,12 +112,20 @@ export function useNearbySharing() {
       })
     })
 
+    const cleanupCloseConnection = EventsOn("close-connection", async () => {
+      console.log("XX Received close-connection");
+      await stopServer();
+      // TODO cblgh(2026-04-29): set currentStep to something like results-error?
+      setCurrentStep('results');
+    });
+
     return () => {
       cleanupFileReceived();
       cleanupPingListener();
       cleanupRegisterListener();
       cleanupCertListener();
       cleanupPrepareRequest();
+      cleanupCloseConnection();
     };
   }, []);
 
