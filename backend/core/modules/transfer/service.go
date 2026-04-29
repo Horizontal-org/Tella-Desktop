@@ -448,16 +448,12 @@ func (s *service) CloseConnection(sessionID string) error {
 	// we can use this information to differentiate in the frontend what screen we should pop back to on close-connection
 	// being fired
 	_, transferOngoing := s.transfers.Load(sessionID+"_session")
-	log("is transfer ongoing? %t", transferOngoing)
 	runtime.EventsEmit(s.ctx, "close-connection", map[string]interface{}{
 		"sessionId":        sessionID,
 		"transferOngoing":  transferOngoing,
 	})
 
-	// TODO cblgh(2026-02-16): other than forget transfer session state, what else should we do on close connection?
 	s.endTransfer(sessionID)
-
-	// TODO cblgh(2026-02-16): should "close connection" ultimately also stop the https server?
 	return nil
 }
 
