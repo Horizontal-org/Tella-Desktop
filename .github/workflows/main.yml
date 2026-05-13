@@ -68,17 +68,17 @@ jobs:
         if: matrix.platform == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: wails-binaries-macos
+          name: Tella Desktop macOS
           path: build/bin/*
       - name: upload artifacts windows
         if: matrix.platform == 'ubuntu-24.04'
         uses: actions/upload-artifact@v4
         with:
-          name: wails-binaries-windows
+          name: Tella Desktop Windows
           path: build/bin/*
       - name: upload artifacts linux
         if: matrix.platform == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: wails-binaries-linux
+          name: Tella Desktop Linux
           path: build/bin/*
