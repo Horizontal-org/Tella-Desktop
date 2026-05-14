@@ -9,6 +9,9 @@ jobs:
         platform: [macos-latest, ubuntu-24.04, ubuntu-latest]
         go-version: [1.24.1]
     runs-on: ${{ matrix.platform }}
+    env:
+      APPLE_TEAM_ID: 6ZG9T42688
+      MACOS_CODESIGN_NAME: Horizontal
     steps:
       - uses: actions/checkout@v4
       - name: Install Go
@@ -73,7 +76,7 @@ jobs:
           echo "Removing old .app"
           rm -rf "Tella-Desktop.app" 
           wails build --platform "darwin/universal" --ldflags="-s -w"
-          codesign --force --deep --options runtime --timestamp --entitlements ./build/darwin/entitlements.plist --sign "Developer ID Application: Horizontal (6ZG9T42688)" ./build/bin/Tella-Desktop.app
+          codesign --force --deep --options runtime --timestamp --entitlements ./build/darwin/entitlements.plist --sign "Developer ID Application: ${MACOS_CODESIGN_NAME} (${APPLE_TEAM_ID})" ./build/bin/Tella-Desktop.app
           codesign --verify --deep --strict --verbose=2 ./build/bin/Tella-Desktop.app
           appdmg ./dmg.json ./build/bin/tella.dmg
       - name: Notarize and staple macOS DMG
@@ -81,7 +84,6 @@ jobs:
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: 6ZG9T42688
         run: |
           xcrun notarytool submit ./build/bin/tella.dmg \
             --apple-id "$APPLE_ID" \
