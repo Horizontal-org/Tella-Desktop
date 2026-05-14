@@ -20,7 +20,7 @@
   "darwin": {
     "sign": true,
     "codesign": {
-      "identity": "Developer ID Application: YOUR_ORG_NAME (YOUR_TEAM_ID)",
+      "identity": "Developer ID Application: Horizontal (6ZG9T42688)",
       "entitlements": "build/darwin/entitlements.plist",
       "options": [
         "--timestamp",
