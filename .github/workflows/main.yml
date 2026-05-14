@@ -65,6 +65,7 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
       - name: Build OSX 
         if: matrix.platform == 'macos-latest'
         # Tella-Desktop.app is a folder, while tella.app is the executable inside that folder -- confusing? Yes, unfortunately!
@@ -72,6 +73,7 @@ jobs:
           echo "Removing old .app"
           rm -rf "Tella-Desktop.app" 
           wails build --platform "darwin/universal" --ldflags="-s -w"
+          codesign --force --deep --options runtime --timestamp --entitlements ./build/darwin/entitlements.plist --sign "Developer ID Application: Horizontal (6ZG9T42688)" ./build/bin/Tella-Desktop.app
           codesign --verify --deep --strict --verbose=2 ./build/bin/Tella-Desktop.app
           appdmg ./dmg.json ./build/bin/tella.dmg
       - name: Notarize and staple macOS DMG
