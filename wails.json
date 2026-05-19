@@ -7,8 +7,8 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "valbuenag",
-    "email": "valbuena52@gmail.com"
+    "name": "Horizontal",
+    "email": "dev@wearehorizontal.org"
   },
   "buildTags": "sqlite_unlock_notify sqlite_crypt sqlcipher",
   "info": {
@@ -20,7 +20,7 @@
   "darwin": {
     "sign": true,
     "codesign": {
-      "identity": "Developer ID Application: YOUR_ORG_NAME (YOUR_TEAM_ID)",
+      "identity": "Developer ID Application: Horizontal (6ZG9T42688)",
       "entitlements": "build/darwin/entitlements.plist",
       "options": [
         "--timestamp",

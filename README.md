@@ -143,17 +143,21 @@ The application implements the [Tella Nearby Sharing protocol](https://github.co
 
 ### macOS Code Signing
 
-The application is configured for code signing on macOS for distribution outside the App Store:
+The application is configured for code signing and notarization on macOS for distribution outside the App Store:
 
 - Uses Developer ID Application certificate for notarization
 - Includes hardened runtime options for security
 - Requires valid Apple Developer account for signing
 
-To build a signed version for macOS:
+The GitHub Actions macOS build expects these repository secrets:
 
-- Update the identity in wails.json with your Developer ID
-- Ensure you have a valid Developer ID Application certificate
-- Run wails build - the app will be automatically signed during build
+- `MACOS_CERTIFICATE_BASE64` - Base64 encoded `.p12` certificate
+- `MACOS_CERTIFICATE_PASSWORD` - Password for the `.p12` certificate
+- `KEYCHAIN_PASSWORD` - Temporary CI keychain password
+- `APPLE_ID` - Apple ID email with access to the developer team
+- `APPLE_APP_SPECIFIC_PASSWORD` - App-specific password for notarization
+
+The certificate identity is configured in `wails.json` as `Developer ID Application: Horizontal (6ZG9T42688)`.
 
 ### Compatibility
 

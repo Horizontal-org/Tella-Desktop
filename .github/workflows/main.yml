@@ -9,6 +9,9 @@ jobs:
         platform: [macos-latest, ubuntu-24.04, ubuntu-latest]
         go-version: [1.24.1]
     runs-on: ${{ matrix.platform }}
+    env:
+      APPLE_TEAM_ID: 6ZG9T42688
+      MACOS_CODESIGN_NAME: Horizontal
     steps:
       - uses: actions/checkout@v4
       - name: Install Go
@@ -47,15 +50,48 @@ jobs:
         run: |
           npm install -g appdmg
           echo ' { "title": "Tella", "icon": "./defaultappicon.icns", "contents": [ { "x": 448, "y": 344, "type": "link", "path": "/Applications" }, { "x": 192, "y": 344, "type": "file", "path": "./build/bin/Tella-Desktop.app" } ] } ' > dmg.json
+      - name: Import macOS signing certificate
+        if: matrix.platform == 'macos-latest'
+        env:
+          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH="$RUNNER_TEMP/macos-signing-certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+
+          printf "%s" "$MACOS_CERTIFICATE_BASE64" | base64 -D > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
       - name: Build OSX 
         if: matrix.platform == 'macos-latest'
-        # TODO: get OSX signing working
         # Tella-Desktop.app is a folder, while tella.app is the executable inside that folder -- confusing? Yes, unfortunately!
         run: |
           echo "Removing old .app"
           rm -rf "Tella-Desktop.app" 
           wails build --platform "darwin/universal" --ldflags="-s -w"
+          codesign --force --deep --options runtime --timestamp --entitlements ./build/darwin/entitlements.plist --sign "Developer ID Application: ${MACOS_CODESIGN_NAME} (${APPLE_TEAM_ID})" ./build/bin/Tella-Desktop.app
+          codesign --verify --deep --strict --verbose=2 ./build/bin/Tella-Desktop.app
           appdmg ./dmg.json ./build/bin/tella.dmg
+      - name: Notarize and staple macOS DMG
+        if: matrix.platform == 'macos-latest'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          xcrun notarytool submit ./build/bin/tella.dmg \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple ./build/bin/tella.dmg
+          xcrun stapler validate ./build/bin/tella.dmg
       - name: Build for Windows (on linux!)
         if: matrix.platform == 'ubuntu-24.04'
         run: |
@@ -68,17 +104,17 @@ jobs:
         if: matrix.platform == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: wails-binaries-macos
+          name: Tella Desktop macOS
           path: build/bin/*
       - name: upload artifacts windows
         if: matrix.platform == 'ubuntu-24.04'
         uses: actions/upload-artifact@v4
         with:
-          name: wails-binaries-windows
+          name: Tella Desktop Windows
           path: build/bin/*
       - name: upload artifacts linux
         if: matrix.platform == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: wails-binaries-linux
+          name: Tella Desktop Linux
           path: build/bin/*
