@@ -225,7 +225,7 @@ func (s *service) AcceptTransfer(sessionID string) error {
 		log("Transfer accepted for session: %s", sessionID)
 		return nil
 	default:
-		fmt.Errorf("failed to send acceptance response")
+		log("failed to send acceptance response")
 		return errAccept
 	}
 }

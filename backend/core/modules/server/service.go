@@ -5,6 +5,8 @@ import (
 	crand "crypto/rand"
 	ctls "crypto/tls"
 	"fmt"
+	"crypto/x509"
+	"crypto/sha256"
 	"math/big"
 	"net"
 	"net/http"
@@ -28,6 +30,7 @@ import (
 var log = devlog.Logger("server")
 
 type service struct {
+	fingerprint				  string // pinned fingerprint for sender
 	limitingMiddleware  http.Handler 
 	nonceManager        *nonces.NonceManager
 	limiter             *RateLimitingWare
@@ -139,9 +142,29 @@ func (s *service) Start(port int) error {
 		Organization: []string{"Tella"},
 		IPAddresses:  ips,
 	})
+
 	if err != nil {
 		log("failed to generate TLS config: %v", err)
 		return errStart
+	}
+
+	// do not require any client certs when server is freshly started
+	tlsConfig.ClientAuth = ctls.NoClientCert
+	// NOTE cblgh(2026-03-15): set up a custom cert pool using the pinned cert?
+	// to allow use of tls.Config.ClientAuth: tls.RequireAndVerifyClientCert
+	// c.f https://stackoverflow.com/a/63317898
+	tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		log("VerifyPeerCertificate called")
+		encodedCert, err := tls.EncodeCertAsPEM(rawCerts[0])
+		if err != nil {
+			return err
+		}
+		calculatedPEMHash := sha256.Sum256(encodedCert)
+		log("incoming cert hash\n%x\n", calculatedPEMHash)
+		if fmt.Sprintf("%x", calculatedPEMHash) != s.fingerprint {
+			return errors.New("pin did not match")
+		}
+		return nil
 	}
 
 	s.tlsConfig = tlsConfig
@@ -153,7 +176,7 @@ func (s *service) Start(port int) error {
 	// TODO (2026-02-19): dhekra / iOS closes the server when the transfer is explicitly stopped
 
 	handler := NewHandler(mux, s.registrationHandler, transferHandler)
-	handler.SetupRoutes()
+	handler.SetupRoutes(s.PinFingerprint)
 
 	s.limitingMiddleware = s.limiter.Handler(mux)
 	s.port = port
@@ -200,6 +223,29 @@ func (s *service) startServer() error {
 	return nil
 }
 
+// PinFingerprint pins the SHA256 hash of the PEM-encoded cert. The TLS config is changed to require a client cert, which necessitates restarting the https server instance.
+func (s *service) PinFingerprint(fingerprint string) error {
+	log("Pin fingerprint called")
+	if len(fingerprint) != 64 {
+		return errors.New("expected fingerprint string length of 64ch")
+	}
+	s.fingerprint = fingerprint
+	// terminate the previous instance
+	shutdownCtx, cancel := context.WithTimeout(s.ctx, 1500*time.Millisecond)
+	defer cancel()
+	if err := s.server.Shutdown(shutdownCtx); err != nil {
+		log("Graceful shutdown failed: %v, forcing close\n", err)
+	}
+	log("Stopped server & restarting")
+	// change the tls config to require client certs on connection going forward.
+	// we use `tls.RequireAnyClientCert` as we do not have the full client cert
+	// => can't create and pass a cert pool that will allow tls.VerifyCertificate to succeed
+	s.tlsConfig.ClientAuth = ctls.RequireAnyClientCert
+	// NOTE cblgh(2026-03-15): we need to allocate a new instance of http.Server and set the updated TLS config on it
+	// before restarting the server for the config changes to take effect
+	return s.startServer()
+}
+
 func (s *service) Stop(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -221,6 +267,7 @@ func (s *service) Stop(ctx context.Context) error {
 	s.server = nil
 	s.tlsConfig = nil
 	s.limitingMiddleware = nil
+	s.fingerprint = ""
 
 	log("HTTPS Server stopped\n")
 
