@@ -65,7 +65,7 @@ export function ConnectStep({ serverRunning, localIPs, certificateHash, isQRMode
       <StepTitle>
         {isQRMode
           ? "Show this QR code for the sender to scan."
-          : "The sender needs to input the following to connect to your device."
+          : "The sender should input the following information in Tella on their phone."
         }
       </StepTitle>
 
@@ -95,7 +95,7 @@ export function ConnectStep({ serverRunning, localIPs, certificateHash, isQRMode
         ) : (
           <>
             <InfoRow>
-              <InfoLabel>IP ADDRESS</InfoLabel>
+              <InfoLabel>IP addresses </InfoLabel>
               <InfoValue>{localIPs.join(', ')}</InfoValue>
             </InfoRow>
 
@@ -110,21 +110,10 @@ export function ConnectStep({ serverRunning, localIPs, certificateHash, isQRMode
             </InfoRow>
           </>
         )}
-
-        <BackToAutoButton>
-          {isQRMode
-            ? "Having trouble with the QR code?"
-            : "Go back to automatic connection"
-          }
-        </BackToAutoButton>
-        
-        <QRCodeButton onClick={toggleQRCode}>
-          {isQRMode ? 'CONNECT MANUALLY' : 'SEE QR CODE'}
-        </QRCodeButton>
       </DeviceInfoCard>
 
       <AutoMoveText>
-        You will automatically move to the next screen as soon as the connection with the sender is established
+        You will automatically move to the next screen as soon as the connection with the sender is established.
       </AutoMoveText>
     </StepContent>
   );
@@ -137,8 +126,8 @@ const StepContent = styled.div`
 `;
 
 const StepTitle = styled.h2`
-  font-size: 1.2rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 400;
   color: ##5F6368;
   margin-bottom: 2rem;
 `;
@@ -148,6 +137,7 @@ const DeviceInfoCard = styled.div`
   border-radius: 8px;
   margin-bottom: 2rem;
   text-align: left;
+  padding-bottom: 1rem;
 `;
 
 const DeviceInfoHeader = styled.div`

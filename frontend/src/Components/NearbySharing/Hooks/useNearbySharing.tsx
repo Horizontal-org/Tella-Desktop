@@ -8,6 +8,10 @@ import { log } from "../../../util/util"
 type FlowStep = 'intro' | 'connect' | 'accept' | 'receive' | 'results';
 type ModalState = 'waiting' | 'confirm';
 
+// TODO (2026-06-15): use these state transitions for manual confirmation
+// TODO (2026-06-15): remove 'waiting' from hash verification modal
+type ManualConfirmationSteps = 'COMFIRM_RECEIVER' | 'WAITING_FOR_SENDER_CONFIRM_RECEIVER' | 'CONFIRM_SENDER' | 'WAITING_FOR_SENDER_CONFIRM_SENDER' 
+
 interface FileInfo {
   id: string;
   fileName: string;
@@ -45,12 +49,13 @@ export function useNearbySharing() {
   
   // Certificate verification state
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showWaitingForSenderModal, setShowWaitingForSenderModal] = useState(false);
   const [certificateHash, setCertificateHash] = useState<string>('');
   const [modalState, setModalState] = useState<ModalState>('waiting');
 
   // Connection mode state
-  const [isUsingQRMode, setIsUsingQRMode] = useState(true);
-  const isUsingQRModeRef = useRef(true);
+  const [isUsingQRMode, setIsUsingQRMode] = useState(false);
+  const isUsingQRModeRef = useRef(false);
 
   // Initialize network info and event listeners
   useEffect(() => {
@@ -66,7 +71,7 @@ export function useNearbySharing() {
     fetchNetworkInfo();
 
     const cleanupPingListener = EventsOn("ping-received", (data) => {
-      log("Ping received from iOS device:", data);
+      log("Ping received:", data);
       setShowVerificationModal(true);
       setModalState('waiting')
     });
@@ -101,6 +106,7 @@ export function useNearbySharing() {
       setCertificateHash(data.toString());
     });
 
+    // TODO (2026-06-16): "prepare-upload-request" is this the transition that ends the second "waiting for sender" screen?
     const cleanupPrepareRequest = EventsOn("prepare-upload-request", (data) => {
       log("📨 Received prepare upload request in parent:", data);
       const requestData = data as TransferData;
@@ -165,6 +171,21 @@ export function useNearbySharing() {
       console.error("Failed to confirm registration:", error);
       return false;
     }
+  };
+
+  // TODO (2026-06-15): revise copy of handleVerificationDiscard to make sure is implemented properly
+  const handleWaitingForSenderCancel = async () => {
+    log("❌ Waiting for sender CANCELED");
+    try {
+      await RejectRegistration();
+    } catch (error) {
+      console.error("Failed to reject registration:", error);
+    }
+    setShowVerificationModal(false);
+    setShowWaitingForSenderModal(false);
+    setModalState('waiting');
+    await handleStopServer();
+    setCurrentStep('intro');
   };
 
   const handleVerificationDiscard = async () => {
@@ -252,11 +273,12 @@ export function useNearbySharing() {
     setCurrentSessionId('');
     setTransferData(null);
     setShowVerificationModal(false);
+    setShowWaitingForSenderModal(false);
     setCertificateHash('');
     setModalState('waiting');
     setCurrentStep('intro');
-    setIsUsingQRMode(true);
-    isUsingQRModeRef.current = true;
+    setIsUsingQRMode(false);
+    isUsingQRModeRef.current = false;
   };
 
   return {
@@ -268,6 +290,7 @@ export function useNearbySharing() {
     currentSessionId,
     transferData,
     showVerificationModal,
+    showWaitingForSenderModal,
     certificateHash,
     modalState,
     isUsingQRMode,
@@ -286,6 +309,7 @@ export function useNearbySharing() {
     handleContinue,
     handleVerificationConfirm,
     handleVerificationDiscard,
+    handleWaitingForSenderCancel,
     handleFileRequestAccept,
     handleFileRequestReject,
     handleFileReceiving,

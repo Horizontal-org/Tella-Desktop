@@ -16,6 +16,7 @@ export function NearbySharing() {
     currentSessionId,
     transferData,
     showVerificationModal,
+    showWaitingForSenderModal,
     certificateHash,
     modalState,
     isUsingQRMode,
@@ -25,6 +26,7 @@ export function NearbySharing() {
     handleContinue,
     handleVerificationConfirm,
     handleVerificationDiscard,
+    handleWaitingForSenderCancel,
     handleFileRequestAccept,
     handleFileRequestReject,
     handleFileReceiving,
@@ -100,6 +102,8 @@ export function NearbySharing() {
     </Container>
   );
 }
+
+// TODO (2026-06-16): pass also the "Sender Certificate Hash" to CertificateVerificationModal (+ ensuing rework that enables that)
 
 const Container = styled.div`
   display: flex;
