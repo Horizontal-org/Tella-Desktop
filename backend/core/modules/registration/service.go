@@ -32,16 +32,26 @@ func NewService(ctx context.Context) Service {
 	}
 }
 
-func (s *service) CreateSession(pin, nonce string) (string, error) {
+var ErrTooManyAttempts = errors.New("Too many invalid attempts")
+var ErrPinInvalid = errors.New("Invalid PIN")
+
+func (s *service) IsAuthorised(pin, nonce string) (bool, error) {
 	// TODO cblgh(2026-02-17): guard ratelimiter with mutex alt. use sync.Map to prevent crash from malicious behaviour?
 	// TODO cblgh(2026-03-11) change this rate limiter to not be on the nonce any more?
 	if s.rateLimiter[nonce] >= 3 { // check this with the team
-		return "", errors.New("too many invalid attempts")
+		return false, ErrTooManyAttempts
 	}
 
 	if pin != s.pinCode {
 		s.rateLimiter[nonce]++
-		return "", errors.New("Invalid pin")
+		return false, ErrPinInvalid
+	}
+	return true, nil
+}
+
+func (s *service) CreateSession(pin, nonce string) (string, error) {
+	if authorised, err := s.IsAuthorised(pin, nonce); !authorised {
+		return "", err
 	}
 
 	sessionID := uuid.New().String()

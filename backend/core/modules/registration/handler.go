@@ -58,8 +58,8 @@ func (h *Handler) HandlePing(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// rememberClientFingerprint changes tls config of package server. this change also restarts the https server instance.
-func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, rememberClientFingerprint func (string) error) {
+// rememberSenderFingerprint changes tls config of package server. this change also restarts the https server instance.
+func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, rememberSenderFingerprint func (string) error) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -92,7 +92,16 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, remembe
 		return
 	}
 
-	// Store the pending registration
+	if authorised, err := h.service.IsAuthorised(request.PIN, request.Nonce); !authorised {
+		if errors.Is(err, ErrPinInvalid) {
+			http.Error(w, "Invalid PIN", http.StatusUnauthorized)
+		} 
+		if errors.Is(err, ErrTooManyAttempts) {
+			http.Error(w, "Too many requests", http.StatusTooManyRequests)
+		}
+		return
+	}
+
 	h.mu.Lock()
 	h.pendingRegistration = &PendingRegistration{
 		PIN:      request.PIN,
@@ -119,9 +128,9 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, remembe
 		h.pendingRegistration = nil
 		// if we're sending a successful response it was because the pin was valid!
 		// since PIN was valid, we can now save the sender's certificate hash and restart the server
-		// note: since `rememberClientFingerprint` requires a restart of the https server, we likely have to send the
+		// note: since `rememberSenderFingerprint` requires a restart of the https server, we likely have to send the
 		// response before restarting?
-		err = rememberClientFingerprint(request.SenderCertificateHash)
+		err = rememberSenderFingerprint(request.SenderCertificateHash)
 		// TODO cblgh(2026-03-15): figure out something less catastrophic for the app than just panic here. but https
 		// handler is a hard place to recover from the death of the https server ^^'
 		//

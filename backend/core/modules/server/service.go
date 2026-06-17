@@ -224,12 +224,12 @@ func (s *service) startServer() error {
 }
 
 // PinFingerprint pins the SHA256 hash of the PEM-encoded cert. The TLS config is changed to require a client cert, which necessitates restarting the https server instance.
-func (s *service) PinFingerprint(fingerprint string) error {
+func (s *service) PinFingerprint(senderFingerprint string) error {
 	log("Pin fingerprint called")
-	if len(fingerprint) != 64 {
+	if len(senderFingerprint) != 64 {
 		return errors.New("expected fingerprint string length of 64ch")
 	}
-	s.fingerprint = fingerprint
+	s.fingerprint = senderFingerprint
 	// terminate the previous instance
 	shutdownCtx, cancel := context.WithTimeout(s.ctx, 1500*time.Millisecond)
 	defer cancel()
