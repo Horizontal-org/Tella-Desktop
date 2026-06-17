@@ -6,11 +6,11 @@ import { useServer } from "../../../Contexts/ServerContext";
 import { log } from "../../../util/util"
 
 type FlowStep = 'intro' | 'connect' | 'accept' | 'receive' | 'results';
-type ModalState = 'waiting' | 'confirm';
+// TODO (2026-06-16): waiting for sender confirm sender is not needed, we instead go directly to confirm registration
+// and then step is set to "accept"
+type ManualConfirmationState = 'CONFIRM_RECEIVER' | 'WAITING_FOR_SENDER_CONFIRM_RECEIVER' | 'CONFIRM_SENDER' | 'WAITING_FOR_SENDER_CONFIRM_SENDER' 
 
-// TODO (2026-06-15): use these state transitions for manual confirmation
-// TODO (2026-06-15): remove 'waiting' from hash verification modal
-type ManualConfirmationSteps = 'COMFIRM_RECEIVER' | 'WAITING_FOR_SENDER_CONFIRM_RECEIVER' | 'CONFIRM_SENDER' | 'WAITING_FOR_SENDER_CONFIRM_SENDER' 
+// TODO (2026-06-16): with state transitions etc, make sure to also handle if "sender confirmed before receiver!"
 
 interface FileInfo {
   id: string;
@@ -49,13 +49,8 @@ export function useNearbySharing() {
   
   // Certificate verification state
   const [showVerificationModal, setShowVerificationModal] = useState(false);
-  const [showWaitingForSenderModal, setShowWaitingForSenderModal] = useState(false);
   const [certificateHash, setCertificateHash] = useState<string>('');
-  const [modalState, setModalState] = useState<ModalState>('waiting');
-
-  // Connection mode state
-  const [isUsingQRMode, setIsUsingQRMode] = useState(false);
-  const isUsingQRModeRef = useRef(false);
+  const [modalState, setModalState] = useState<ManualConfirmationState>('CONFIRM_RECEIVER');
 
   // Initialize network info and event listeners
   useEffect(() => {
@@ -73,41 +68,29 @@ export function useNearbySharing() {
     const cleanupPingListener = EventsOn("ping-received", (data) => {
       log("Ping received:", data);
       setShowVerificationModal(true);
-      setModalState('waiting')
+      // TODO (2026-06-16): set modal state to CONFIRM_RECEIVER
+      setModalState('CONFIRM_RECEIVER')
     });
 
     const cleanupRegisterListener = EventsOn("register-request-received", (data) => {
       log("Register request received:", data);
-      log("Current QR mode:", isUsingQRModeRef.current);
 
-      if (isUsingQRModeRef.current) {
-        log("🔗 QR mode active - auto-confirming registration");
-        // Auto-confirm for QR mode
-        ConfirmRegistration()
-          .then(() => {
-            log("✅ QR registration confirmed successfully");
-            setCurrentStep('accept');
-          })
-          .catch((error) => {
-            console.error("❌ Failed to auto-confirm QR registration:", error);
-            // Fall back to manual confirmation
-            setModalState('confirm');
-            setShowVerificationModal(true);
-          });
-      } else {
-        log("📱 Manual mode - showing confirmation modal");
-        // Manual mode - show certificate verification modal
-        setModalState('confirm');
-      }
+      log("📱 Manual mode - showing confirmation modal");
+      // Manual mode - show certificate verification modal
+      // TODO (2026-06-16): set modal state to CONFIRM_SENDER
+      setModalState('CONFIRM_SENDER');
     });
 
     const cleanupCertListener = EventsOn("certificate-hash", (data) => {
-      log("Certificate hash received:", data);
+      log("Receiver Certificate hash received:", data);
       setCertificateHash(data.toString());
     });
 
     // TODO (2026-06-16): "prepare-upload-request" is this the transition that ends the second "waiting for sender" screen?
     const cleanupPrepareRequest = EventsOn("prepare-upload-request", (data) => {
+      // TODO (2026-06-16): when to set step to accept? one prepare-upload-request?
+      setCurrentStep('accept'); 
+      setShowVerificationModal(false);
       log("📨 Received prepare upload request in parent:", data);
       const requestData = data as TransferData;
       setTransferData(requestData);
@@ -159,13 +142,16 @@ export function useNearbySharing() {
     return await stopServer();
   };
 
-  // Certificate verification handlers
+
+  const handleReceiverConfirmReceiver = async () => {
+      setModalState("WAITING_FOR_SENDER_CONFIRM_RECEIVER")
+  }
+  // Receiver Certificate verification handlers
   const handleVerificationConfirm = async () => {
-    log("✅ Certificate verification CONFIRMED");
+    log("✅ Receiver Certificate verification CONFIRMED");
     try {
       await ConfirmRegistration();
-      setShowVerificationModal(false);
-      setCurrentStep('accept');
+      setModalState('WAITING_FOR_SENDER_CONFIRM_SENDER'); // TODO (2026-06-16): double check this confirmation state
       return true;
     } catch (error) {
       console.error("Failed to confirm registration:", error);
@@ -181,23 +167,24 @@ export function useNearbySharing() {
     } catch (error) {
       console.error("Failed to reject registration:", error);
     }
+    // if rejected, reset state
     setShowVerificationModal(false);
-    setShowWaitingForSenderModal(false);
-    setModalState('waiting');
+    setModalState('CONFIRM_RECEIVER');
     await handleStopServer();
     setCurrentStep('intro');
   };
 
   const handleVerificationDiscard = async () => {
-    log("❌ Certificate verification DISCARDED");
+    log("❌ Receiver Certificate verification DISCARDED");
     try {
       await RejectRegistration();
     } catch (error) {
       console.error("Failed to reject registration:", error);
     }
     
+    // reset state
     setShowVerificationModal(false);
-    setModalState('waiting');
+    setModalState('CONFIRM_RECEIVER');
     await handleStopServer();
     setCurrentStep('intro');
   };
@@ -273,12 +260,9 @@ export function useNearbySharing() {
     setCurrentSessionId('');
     setTransferData(null);
     setShowVerificationModal(false);
-    setShowWaitingForSenderModal(false);
     setCertificateHash('');
-    setModalState('waiting');
+    setModalState('CONFIRM_RECEIVER');
     setCurrentStep('intro');
-    setIsUsingQRMode(false);
-    isUsingQRModeRef.current = false;
   };
 
   return {
@@ -290,23 +274,13 @@ export function useNearbySharing() {
     currentSessionId,
     transferData,
     showVerificationModal,
-    showWaitingForSenderModal,
     certificateHash,
     modalState,
-    isUsingQRMode,
-    
-    // State setters
 
-    // QR mode handler
-    handleQRModeChange: (isQR: boolean) => {
-      setIsUsingQRMode(isQR);
-      isUsingQRModeRef.current = isQR;
-      log("QR mode changed to:", isQR);
-    },
-    
     // Actions
     handleBack,
     handleContinue,
+    handleReceiverConfirmReceiver,
     handleVerificationConfirm,
     handleVerificationDiscard,
     handleWaitingForSenderCancel,

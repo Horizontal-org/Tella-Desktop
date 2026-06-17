@@ -7,6 +7,7 @@ import { ConnectStep } from "./Connect";
 import { IntroStep } from "./Intro";
 import { ResultsStep } from "./Results";
 import { useNearbySharing } from "./Hooks/useNearbySharing"
+import { log } from "../../util/util"
 
 export function NearbySharing() {
   const {
@@ -16,15 +17,12 @@ export function NearbySharing() {
     currentSessionId,
     transferData,
     showVerificationModal,
-    showWaitingForSenderModal,
     certificateHash,
     modalState,
-    isUsingQRMode,
-
-    handleQRModeChange,
     
     handleContinue,
     handleVerificationConfirm,
+    handleReceiverConfirmReceiver,
     handleVerificationDiscard,
     handleWaitingForSenderCancel,
     handleFileRequestAccept,
@@ -57,8 +55,6 @@ export function NearbySharing() {
             serverRunning={serverRunning}
             localIPs={localIPs}
             certificateHash={certificateHash}
-            isQRMode={isUsingQRMode}
-            onModeChange={handleQRModeChange}
           />
         )}
         
@@ -96,7 +92,8 @@ export function NearbySharing() {
         isOpen={showVerificationModal}
         certificateHash={certificateHash}
         modalState={modalState}
-        onConfirm={handleVerificationConfirm}
+        onConfirmSenderHash={handleVerificationConfirm}
+        onConfirmReceiverHash={handleReceiverConfirmReceiver}
         onDiscard={handleVerificationDiscard}
       />
     </Container>

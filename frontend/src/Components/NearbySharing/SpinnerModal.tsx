@@ -1,16 +1,12 @@
 import styled, { keyframes } from 'styled-components';
 
 interface SpinnerModalProps {
-  isOpen: boolean;
   onCancel: () => void;
 }
 
 export function SpinnerModal({ 
-  isOpen, 
   onCancel 
 }: SpinnerModalProps) {
-  if (!isOpen) return null;
-
   return (
     <ModalOverlay>
       <ModalContainer>

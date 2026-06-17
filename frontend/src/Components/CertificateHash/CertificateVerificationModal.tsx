@@ -5,22 +5,31 @@ import { SpinnerModal } from "../NearbySharing/SpinnerModal";
 interface CertificateVerificationModalProps {
   isOpen: boolean;
   certificateHash: string;
-  modalState: 'waiting' | 'confirm'; 
-  onConfirm: () => void;
+  modalState: 'CONFIRM_RECEIVER' | 'WAITING_FOR_SENDER_CONFIRM_RECEIVER' | 'CONFIRM_SENDER' | 'WAITING_FOR_SENDER_CONFIRM_SENDER'; 
+  onConfirmReceiverHash: () => void;
+  onConfirmSenderHash: () => void;
   onDiscard: () => void;
 }
 
-// TODO (2026-06-16): revamp modal states to use:
-// type ManualConfirmationSteps = 'COMFIRM_RECEIVER' | 'WAITING_FOR_SENDER_CONFIRM_RECEIVER' | 'CONFIRM_SENDER' | 'WAITING_FOR_SENDER_CONFIRM_SENDER' 
-
+// TODO (2026-06-16):
+// confirmReceiverHash -> waiting -> waiting for register request to come in
+// confirmSenderHash -> waiting -> send register response (?) <-- current onConfirm
+//
 export function CertificateVerificationModal({ 
   isOpen, 
   certificateHash, 
   modalState,
-  onConfirm, 
-  onDiscard 
+  onDiscard,
+  onConfirmReceiverHash,
+  onConfirmSenderHash
 }: CertificateVerificationModalProps) {
   if (!isOpen) return null;
+
+  const getStepTitle = () => { 
+      if (modalState === "CONFIRM_RECEIVER") { return "Step 1: Confirm recipient hash" }
+      if (modalState === "CONFIRM_SENDER") { return "Step 2: Confirm sender hash" }
+      return "Step X: Confirm Y"
+  }
 
   /* TODO (2026-06-09): add conditional that sets the background colour -> bc
    1. verifying receiver (desktop)'s cert hash has one (lighter?) color
@@ -30,10 +39,9 @@ export function CertificateVerificationModal({
        * "Confirm and connect"
   */  
 
-  if (modalState === 'waiting') {
+  if (modalState === 'WAITING_FOR_SENDER_CONFIRM_RECEIVER' || modalState === 'WAITING_FOR_SENDER_CONFIRM_SENDER') {
       return (
       <SpinnerModal
-        isOpen={modalState === 'waiting'}
         onCancel={onDiscard}
       />
       )
@@ -45,8 +53,8 @@ export function CertificateVerificationModal({
           <Title>Verification</Title>
         </ModalHeader>
         
-        <Description>
-        Step X: Confirm Y hash
+        <Description> 
+        {getStepTitle()}
         </Description>
 
         <HashContainer>
@@ -67,9 +75,17 @@ export function CertificateVerificationModal({
             DISCARD AND START OVER
           </DiscardButton>
           
-          <ConfirmButton onClick={onConfirm}>
-            CONFIRM AND CONTINUE
-          </ConfirmButton>
+          { modalState === "CONFIRM_RECEIVER" ? (
+              <ConfirmButton onClick={onConfirmReceiverHash}>
+              CONFIRM AND CONTINUE
+              </ConfirmButton>
+          )
+              : (
+                  <ConfirmButton onClick={onConfirmSenderHash}>
+                  CONFIRM AND CONNECT
+                  </ConfirmButton>
+              )
+          }
         </ModalFooter>
       </ModalContainer>
     </ModalOverlay>
