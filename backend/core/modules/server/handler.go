@@ -26,10 +26,10 @@ func NewHandler(
 
 // TODO (2026-06-15): implement /api/v2/* 
 // TODO (2026-06-15): keep /api/v1/ping /api/v1/register around and serve legacy responses to sent queries there
-func (h *Handler) SetupRoutes(pinFingerprint func (string) error) {
+func (h *Handler) SetupRoutes(pinFingerprint func (string) error, getSenderFingerprintCandidate func () string) {
 	h.mux.HandleFunc("/api/v1/ping", h.registrationHandler.HandlePing)
 	h.mux.HandleFunc("/api/v1/register", func(w http.ResponseWriter, r *http.Request) {
-		h.registrationHandler.HandleRegister(w, r, pinFingerprint)
+		h.registrationHandler.HandleRegister(w, r, pinFingerprint, getSenderFingerprintCandidate)
 	})
 	h.mux.HandleFunc("/api/v1/prepare-upload", h.transferHandler.HandlePrepare)
 	h.mux.HandleFunc("/api/v1/upload", h.transferHandler.HandleUpload)

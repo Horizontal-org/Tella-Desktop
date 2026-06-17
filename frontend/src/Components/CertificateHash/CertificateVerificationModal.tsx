@@ -2,9 +2,15 @@ import styled from 'styled-components';
 import { formatHash } from "../../util/util"
 import { SpinnerModal } from "../NearbySharing/SpinnerModal";
 
+// TODO (2026-06-17): implement waitingState below
+// confirm receiver | confirm sender
+// waitingState = (confirm_receiver && !SenderConfirmedReceiver)
+//
 interface CertificateVerificationModalProps {
   isOpen: boolean;
-  certificateHash: string;
+  receiverCertificateHash: string;
+  senderCertificateHash: string;
+  senderConfirmedReceiver: boolean;
   modalState: 'CONFIRM_RECEIVER' | 'WAITING_FOR_SENDER_CONFIRM_RECEIVER' | 'CONFIRM_SENDER' | 'WAITING_FOR_SENDER_CONFIRM_SENDER'; 
   onConfirmReceiverHash: () => void;
   onConfirmSenderHash: () => void;
@@ -17,7 +23,9 @@ interface CertificateVerificationModalProps {
 //
 export function CertificateVerificationModal({ 
   isOpen, 
-  certificateHash, 
+  receiverCertificateHash, 
+  senderCertificateHash, 
+  senderConfirmedReceiver,
   modalState,
   onDiscard,
   onConfirmReceiverHash,
@@ -25,21 +33,26 @@ export function CertificateVerificationModal({
 }: CertificateVerificationModalProps) {
   if (!isOpen) return null;
 
+  const getHashForVerification = () => {
+      if (modalState === "CONFIRM_RECEIVER") { return receiverCertificateHash }
+      if (modalState === "CONFIRM_SENDER") { return senderCertificateHash }
+      return ""
+  }
+
+  const isWaitingForSender = (
+      modalState === "CONFIRM_SENDER" && !senderConfirmedReceiver
+  )
+
   const getStepTitle = () => { 
       if (modalState === "CONFIRM_RECEIVER") { return "Step 1: Confirm recipient hash" }
       if (modalState === "CONFIRM_SENDER") { return "Step 2: Confirm sender hash" }
       return "Step X: Confirm Y"
   }
 
-  /* TODO (2026-06-09): add conditional that sets the background colour -> bc
-   1. verifying receiver (desktop)'s cert hash has one (lighter?) color
-   2. verifying sender s cert hash has another (darker?) color
-   3. Positive action as different text depending on stage:
-       * "Confirm and continue"
-       * "Confirm and connect"
-  */  
+  // TODO (2026-06-17): no timeout or error graphic is triggered currently
+  // TODO (2026-06-17): implement modal for 'Connection failed {context dependent text}'
 
-  if (modalState === 'WAITING_FOR_SENDER_CONFIRM_RECEIVER' || modalState === 'WAITING_FOR_SENDER_CONFIRM_SENDER') {
+  if (isWaitingForSender) {
       return (
       <SpinnerModal
         onCancel={onDiscard}
@@ -57,9 +70,9 @@ export function CertificateVerificationModal({
         {getStepTitle()}
         </Description>
 
-        <HashContainer>
+        <HashContainer $isSender={modalState === "CONFIRM_SENDER"}>
         <pre>
-        <HashText>{formatHash(certificateHash)}</HashText>
+        <HashText $isSender={modalState === "CONFIRM_SENDER"}>{formatHash(getHashForVerification())}</HashText>
         </pre>
         </HashContainer>
 
@@ -154,8 +167,9 @@ const Button = styled.button`
 `;
 
 
-const HashContainer = styled.div`
-  background-color: #f8f9fa;
+// TODO (2026-06-17): dark bg for sender hash verif
+const HashContainer = styled.div<{ $isSender?: boolean }>`
+  background-color: ${props => props.$isSender ? "#071013CC" : "#D9D9D9"};
   border: 1px solid #e9ecef;
   border-radius: 8px;
   padding: 0rem 1.5rem;
@@ -163,10 +177,11 @@ const HashContainer = styled.div`
   justify-content: center;
 `;
 
-const HashText = styled.code`
+const HashText = styled.div<{ $isSender?: boolean }>`
   font-family: 'Courier New', monospace;
   font-size: 1rem;
   color: #212529;
+  color: ${props => props.$isSender ? "white" : "black"};
   word-break: break-all;
   line-height: 1.6;
 `;

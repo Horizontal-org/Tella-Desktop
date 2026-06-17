@@ -17,7 +17,9 @@ export function NearbySharing() {
     currentSessionId,
     transferData,
     showVerificationModal,
-    certificateHash,
+    receiverCertificateHash,
+    senderCertificateHash,
+    senderConfirmedReceiver,
     modalState,
     
     handleContinue,
@@ -54,7 +56,7 @@ export function NearbySharing() {
           <ConnectStep
             serverRunning={serverRunning}
             localIPs={localIPs}
-            certificateHash={certificateHash}
+            certificateHash={receiverCertificateHash}
           />
         )}
         
@@ -90,7 +92,9 @@ export function NearbySharing() {
 
       <CertificateVerificationModal
         isOpen={showVerificationModal}
-        certificateHash={certificateHash}
+        receiverCertificateHash={receiverCertificateHash}
+        senderCertificateHash={senderCertificateHash}
+        senderConfirmedReceiver={senderConfirmedReceiver}
         modalState={modalState}
         onConfirmSenderHash={handleVerificationConfirm}
         onConfirmReceiverHash={handleReceiverConfirmReceiver}
@@ -113,20 +117,16 @@ const Container = styled.div`
 const Header = styled.div`
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   position: relative;
-  padding: 1rem 2rem;
+  padding: 2rem 2rem 0rem 2rem;
   background-color: white;
-  border-bottom: 1px solid #CFCFCF;
 `;
 
 const Title = styled.h1`
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
   font-size: 1.5rem;
-  font-weight: 600;
-  color: #212529;
+  font-weight: 700;
+  color: ##404040;
   margin: 0;
 `;
 

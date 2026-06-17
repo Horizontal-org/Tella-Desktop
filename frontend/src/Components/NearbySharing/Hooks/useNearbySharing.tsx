@@ -6,9 +6,7 @@ import { useServer } from "../../../Contexts/ServerContext";
 import { log } from "../../../util/util"
 
 type FlowStep = 'intro' | 'connect' | 'accept' | 'receive' | 'results';
-// TODO (2026-06-16): waiting for sender confirm sender is not needed, we instead go directly to confirm registration
-// and then step is set to "accept"
-type ManualConfirmationState = 'CONFIRM_RECEIVER' | 'WAITING_FOR_SENDER_CONFIRM_RECEIVER' | 'CONFIRM_SENDER' | 'WAITING_FOR_SENDER_CONFIRM_SENDER' 
+type ManualConfirmationState = 'CONFIRM_RECEIVER' | 'CONFIRM_SENDER' 
 
 // TODO (2026-06-16): with state transitions etc, make sure to also handle if "sender confirmed before receiver!"
 
@@ -49,8 +47,10 @@ export function useNearbySharing() {
   
   // Certificate verification state
   const [showVerificationModal, setShowVerificationModal] = useState(false);
-  const [certificateHash, setCertificateHash] = useState<string>('');
+  const [receiverCertificateHash, setReceiverCertificateHash] = useState<string>('');
+  const [senderCertificateHash, setSenderCertificateHash] = useState<string>('');
   const [modalState, setModalState] = useState<ManualConfirmationState>('CONFIRM_RECEIVER');
+  const [senderConfirmedReceiver, setSenderConfirmedReceiver] = useState<boolean>(false)
 
   // Initialize network info and event listeners
   useEffect(() => {
@@ -68,29 +68,24 @@ export function useNearbySharing() {
     const cleanupPingListener = EventsOn("ping-received", (data) => {
       log("Ping received:", data);
       setShowVerificationModal(true);
-      // TODO (2026-06-16): set modal state to CONFIRM_RECEIVER
       setModalState('CONFIRM_RECEIVER')
     });
 
+    // TODO (2026-06-17):
+    // * handle early confirm by sender in way that doesn't fuck up effects
+    // * pass senderCertificateHash from golang in the Emit
     const cleanupRegisterListener = EventsOn("register-request-received", (data) => {
       log("Register request received:", data);
-
-      log("📱 Manual mode - showing confirmation modal");
-      // Manual mode - show certificate verification modal
-      // TODO (2026-06-16): set modal state to CONFIRM_SENDER
-      setModalState('CONFIRM_SENDER');
+      setSenderCertificateHash(data.senderCertificateHash);
+      setSenderConfirmedReceiver(true);
     });
 
-    const cleanupCertListener = EventsOn("certificate-hash", (data) => {
+    const cleanupCertListener = EventsOn("receiver-certificate-hash", (data) => {
       log("Receiver Certificate hash received:", data);
-      setCertificateHash(data.toString());
+      setReceiverCertificateHash(data.toString());
     });
 
-    // TODO (2026-06-16): "prepare-upload-request" is this the transition that ends the second "waiting for sender" screen?
     const cleanupPrepareRequest = EventsOn("prepare-upload-request", (data) => {
-      // TODO (2026-06-16): when to set step to accept? one prepare-upload-request?
-      setCurrentStep('accept'); 
-      setShowVerificationModal(false);
       log("📨 Received prepare upload request in parent:", data);
       const requestData = data as TransferData;
       setTransferData(requestData);
@@ -142,16 +137,16 @@ export function useNearbySharing() {
     return await stopServer();
   };
 
-
   const handleReceiverConfirmReceiver = async () => {
-      setModalState("WAITING_FOR_SENDER_CONFIRM_RECEIVER")
+      setModalState("CONFIRM_SENDER")
   }
   // Receiver Certificate verification handlers
   const handleVerificationConfirm = async () => {
     log("✅ Receiver Certificate verification CONFIRMED");
     try {
       await ConfirmRegistration();
-      setModalState('WAITING_FOR_SENDER_CONFIRM_SENDER'); // TODO (2026-06-16): double check this confirmation state
+      setShowVerificationModal(false);
+      setCurrentStep('accept');
       return true;
     } catch (error) {
       console.error("Failed to confirm registration:", error);
@@ -170,6 +165,8 @@ export function useNearbySharing() {
     // if rejected, reset state
     setShowVerificationModal(false);
     setModalState('CONFIRM_RECEIVER');
+    setSenderConfirmedReceiver(false);
+
     await handleStopServer();
     setCurrentStep('intro');
   };
@@ -185,6 +182,8 @@ export function useNearbySharing() {
     // reset state
     setShowVerificationModal(false);
     setModalState('CONFIRM_RECEIVER');
+    setSenderConfirmedReceiver(false);
+
     await handleStopServer();
     setCurrentStep('intro');
   };
@@ -260,9 +259,11 @@ export function useNearbySharing() {
     setCurrentSessionId('');
     setTransferData(null);
     setShowVerificationModal(false);
-    setCertificateHash('');
+    setReceiverCertificateHash('');
+    setSenderCertificateHash('');
     setModalState('CONFIRM_RECEIVER');
     setCurrentStep('intro');
+    setSenderConfirmedReceiver(false);
   };
 
   return {
@@ -274,7 +275,9 @@ export function useNearbySharing() {
     currentSessionId,
     transferData,
     showVerificationModal,
-    certificateHash,
+    receiverCertificateHash,
+    senderCertificateHash,
+    senderConfirmedReceiver,
     modalState,
 
     // Actions

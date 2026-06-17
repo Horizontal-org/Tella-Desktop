@@ -30,7 +30,10 @@ import (
 var log = devlog.Logger("server")
 
 type service struct {
-	fingerprint				  string // pinned fingerprint for sender
+	pinnedSenderCertificateHash		string // pinned fingerprint for sender
+	// fingerprintCandidate is derived from incoming requests when 
+	// tlsConfig.ClientAuth is set to RequestClientCert pre-mTLS establishment (post mTLS config is set to RequireAnyClientCert)
+	fingerprintCandidate string 
 	limitingMiddleware  http.Handler 
 	nonceManager        *nonces.NonceManager
 	limiter             *RateLimitingWare
@@ -149,20 +152,42 @@ func (s *service) Start(port int) error {
 	}
 
 	// do not require any client certs when server is freshly started
-	tlsConfig.ClientAuth = ctls.NoClientCert
+	tlsConfig.ClientAuth = ctls.RequestClientCert
 	// NOTE cblgh(2026-03-15): set up a custom cert pool using the pinned cert?
 	// to allow use of tls.Config.ClientAuth: tls.RequireAndVerifyClientCert
 	// c.f https://stackoverflow.com/a/63317898
 	tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		// currently pre-mtls, and not strictly requiring cert
+		if (tlsConfig.ClientAuth == ctls.RequestClientCert && len(rawCerts) == 0) {
+			return nil
+		}
+		// we're post-mtls, this should not occur for legitimate requests
+		if (tlsConfig.ClientAuth == ctls.RequireAnyClientCert && len(rawCerts) == 0) {
+			return errors.New("Sender certificate missing")
+		}
+
 		log("VerifyPeerCertificate called")
 		encodedCert, err := tls.EncodeCertAsPEM(rawCerts[0])
 		if err != nil {
 			return err
 		}
 		calculatedPEMHash := sha256.Sum256(encodedCert)
+		hexPEMHash := fmt.Sprintf("%x", calculatedPEMHash)
+		// still pre-mtls but we have now have a candidate to use for senderFingerprint.
+		// to limit attack surface, we only every allow setting one fingerprint candidate
+		if (tlsConfig.ClientAuth == ctls.RequestClientCert && s.fingerprintCandidate == "") {
+			// NOTE (2026-06-17): this strictness could cause an attacker to basically spam requests and deny any actual
+			// requests on adversarial networks from going through; maybe reconsider
+
+			// NOTE (2026-06-17): prevent multiple register POST (with different senderCertificateHash values) from being sent in succession?
+
+			s.fingerprintCandidate = hexPEMHash
+			return nil
+		}
+
 		log("incoming cert hash\n%x\n", calculatedPEMHash)
-		if fmt.Sprintf("%x", calculatedPEMHash) != s.fingerprint {
-			return errors.New("pin did not match")
+		if hexPEMHash != s.pinnedSenderCertificateHash {
+			return errors.New("Hash of incoming request certificate did not pinned sender certificate hash")
 		}
 		return nil
 	}
@@ -176,7 +201,7 @@ func (s *service) Start(port int) error {
 	// TODO (2026-02-19): dhekra / iOS closes the server when the transfer is explicitly stopped
 
 	handler := NewHandler(mux, s.registrationHandler, transferHandler)
-	handler.SetupRoutes(s.PinFingerprint)
+	handler.SetupRoutes(s.PinFingerprint, s.GetSenderFingerprintCandidate)
 
 	s.limitingMiddleware = s.limiter.Handler(mux)
 	s.port = port
@@ -222,6 +247,9 @@ func (s *service) startServer() error {
 	s.running = true
 	return nil
 }
+func (s *service) GetSenderFingerprintCandidate() string {
+	return s.fingerprintCandidate
+}
 
 // PinFingerprint pins the SHA256 hash of the PEM-encoded cert. The TLS config is changed to require a client cert, which necessitates restarting the https server instance.
 func (s *service) PinFingerprint(senderFingerprint string) error {
@@ -229,7 +257,7 @@ func (s *service) PinFingerprint(senderFingerprint string) error {
 	if len(senderFingerprint) != 64 {
 		return errors.New("expected fingerprint string length of 64ch")
 	}
-	s.fingerprint = senderFingerprint
+	s.pinnedSenderCertificateHash = senderFingerprint
 	// terminate the previous instance
 	shutdownCtx, cancel := context.WithTimeout(s.ctx, 1500*time.Millisecond)
 	defer cancel()
@@ -267,7 +295,8 @@ func (s *service) Stop(ctx context.Context) error {
 	s.server = nil
 	s.tlsConfig = nil
 	s.limitingMiddleware = nil
-	s.fingerprint = ""
+	s.pinnedSenderCertificateHash = ""
+	s.fingerprintCandidate = ""
 
 	log("HTTPS Server stopped\n")
 

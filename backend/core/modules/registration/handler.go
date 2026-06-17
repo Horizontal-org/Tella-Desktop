@@ -59,7 +59,7 @@ func (h *Handler) HandlePing(w http.ResponseWriter, r *http.Request) {
 }
 
 // rememberSenderFingerprint changes tls config of package server. this change also restarts the https server instance.
-func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, rememberSenderFingerprint func (string) error) {
+func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, rememberSenderFingerprint func (string) error, getSenderFingerprintCandidate func() string) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -76,9 +76,6 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, remembe
 	var request struct {
 		PIN   string `json:"pin"`
 		Nonce string `json:"nonce"`
-		// TODO (2026-06-09): remove cert hash from request payload, and instead extract it from the request's connection information?
-		// OTHERWISE: document inclusion of senderCertHash in protocol once more
-		SenderCertificateHash string `json:"senderCertificateHash"`
 	}
 
 	if err := json.Unmarshal(requestBody, &request); err != nil {
@@ -87,7 +84,9 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, remembe
 		return
 	}
 
-	if request.PIN == "" || request.Nonce == "" || len(request.SenderCertificateHash) != 64 {
+	// it's only a claimed sender until verification has been mutually confirmed
+	certificateHashClaimedSender := getSenderFingerprintCandidate()
+	if request.PIN == "" || request.Nonce == "" || len(certificateHashClaimedSender) != 64 {
 		http.Error(w, "Missing required parameters", http.StatusBadRequest)
 		return
 	}
@@ -116,6 +115,7 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, remembe
 		"timestamp": time.Now().Unix(),
 		"message":   "Sender is requesting to register",
 		"state":     "confirm",
+		"senderCertificateHash": certificateHashClaimedSender,
 	})
 
 	// Wait for user confirmation or timeout
@@ -130,7 +130,7 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, remembe
 		// since PIN was valid, we can now save the sender's certificate hash and restart the server
 		// note: since `rememberSenderFingerprint` requires a restart of the https server, we likely have to send the
 		// response before restarting?
-		err = rememberSenderFingerprint(request.SenderCertificateHash)
+		err = rememberSenderFingerprint(certificateHashClaimedSender)
 		// TODO cblgh(2026-03-15): figure out something less catastrophic for the app than just panic here. but https
 		// handler is a hard place to recover from the death of the https server ^^'
 		//
