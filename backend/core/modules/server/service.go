@@ -34,6 +34,7 @@ type service struct {
 	// fingerprintCandidate is derived from incoming requests when 
 	// tlsConfig.ClientAuth is set to RequestClientCert pre-mTLS establishment (post mTLS config is set to RequireAnyClientCert)
 	fingerprintCandidate string 
+	fingerprintCandidateLockedIn bool
 	limitingMiddleware  http.Handler 
 	nonceManager        *nonces.NonceManager
 	limiter             *RateLimitingWare
@@ -157,7 +158,7 @@ func (s *service) Start(port int) error {
 	// to allow use of tls.Config.ClientAuth: tls.RequireAndVerifyClientCert
 	// c.f https://stackoverflow.com/a/63317898
 	tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-		// currently pre-mtls, and not strictly requiring cert
+		// currently pre-mtls and not strictly requiring cert
 		if (tlsConfig.ClientAuth == ctls.RequestClientCert && len(rawCerts) == 0) {
 			return nil
 		}
@@ -173,18 +174,32 @@ func (s *service) Start(port int) error {
 		}
 		calculatedPEMHash := sha256.Sum256(encodedCert)
 		hexPEMHash := fmt.Sprintf("%x", calculatedPEMHash)
-		// still pre-mtls but we have now have a candidate to use for senderFingerprint.
-		// to limit attack surface, we only every allow setting one fingerprint candidate
-		if (tlsConfig.ClientAuth == ctls.RequestClientCert && s.fingerprintCandidate == "") {
-			// NOTE (2026-06-17): this strictness could cause an attacker to basically spam requests and deny any actual
-			// requests on adversarial networks from going through; maybe reconsider
 
-			// NOTE (2026-06-17): prevent multiple register POST (with different senderCertificateHash values) from being sent in succession?
-
-			s.fingerprintCandidate = hexPEMHash
+		// in this section we use a mutex because we want to be sure to never set s.fingerprintCandidate to something else while it is being
+		// fetched by s.GetSenderFingerprintCandidate for being presented to the user
+		s.mu.Lock()
+		if (tlsConfig.ClientAuth == ctls.RequestClientCert) {
+			// prevent multiple register POST (with different senderCertificateHash values) from being sent in succession once
+			// hash is displayed 
+			// NOTE: this is not our session-long pinning - we haven't definitively set s.pinnedFingerprintCandidate! 
+			// we only set s.pinnedSenderCertificateHash on successful sender certificate hash
+			// verification i.e. calling s.PinFingerprint() from registration/handler.go
+			if !s.fingerprintCandidateLockedIn {
+				// still pre-mtls but we have now have a candidate to use for senderFingerprint.
+				s.fingerprintCandidate = hexPEMHash
+				log("sender fingerprint candidate %s", s.fingerprintCandidate)
+			} else {
+				if hexPEMHash != s.fingerprintCandidate {
+					s.mu.Unlock()
+					return errors.New("Hash of incoming request certificate did not match candidate for sender certificate hash")
+				}
+			}
+			s.mu.Unlock()
 			return nil
 		}
+		s.mu.Unlock()
 
+		// we should only reach this point in the routine once we have established mTLS and have a pinned sender certificate hash
 		log("incoming cert hash\n%x\n", calculatedPEMHash)
 		if hexPEMHash != s.pinnedSenderCertificateHash {
 			return errors.New("Hash of incoming request certificate did not pinned sender certificate hash")
@@ -248,7 +263,18 @@ func (s *service) startServer() error {
 	return nil
 }
 func (s *service) GetSenderFingerprintCandidate() string {
-	return s.fingerprintCandidate
+	var candidate string
+	// use mutex because we want to be sure to never set s.fingerprintCandidate to something else while it is being
+	// fetched for being presented to the user. 
+	//
+	// to limit attack surface, we only every allow setting one fingerprint
+	// candidate once the sender fingerprint candidate has been displayed by the user
+	s.mu.Lock()
+	candidate = s.fingerprintCandidate
+	log("sender fingerprint candidate locked to %s", candidate)
+	s.fingerprintCandidateLockedIn = true
+	s.mu.Unlock()
+	return candidate
 }
 
 // PinFingerprint pins the SHA256 hash of the PEM-encoded cert. The TLS config is changed to require a client cert, which necessitates restarting the https server instance.
@@ -297,6 +323,7 @@ func (s *service) Stop(ctx context.Context) error {
 	s.limitingMiddleware = nil
 	s.pinnedSenderCertificateHash = ""
 	s.fingerprintCandidate = ""
+	s.fingerprintCandidateLockedIn = false
 
 	log("HTTPS Server stopped\n")
 

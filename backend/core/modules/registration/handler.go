@@ -58,8 +58,18 @@ func (h *Handler) HandlePing(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// rememberSenderFingerprint changes tls config of package server. this change also restarts the https server instance.
-func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, rememberSenderFingerprint func (string) error, getSenderFingerprintCandidate func() string) {
+// rememberSenderFingerprint pins the sender certificate hash. calling changes tls config of package server, making it stricter in terms
+// of requiring tls client certs. the tls config change requires restarting the https server instance.
+//
+// lockAndGetSenderFingerprintCandidate locks the current candidate for sender fingerprint,
+// preventing it from being changed without discarding the session and starting over. 
+// this locking behaviour is intended to limit the attack surface and prevent mismatches in what is presented to a user
+// and what may be pinned. 
+//
+// we lock after authorisation to limit attacks that are intended to sabotage the connection
+// establishment by prematurely forcing the fingerprint to be locked and thus would prevent an authentic sender from
+// having their fingerprint from being chosen.
+func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, rememberSenderFingerprint func (string) error, lockAndGetSenderFingerprintCandidate func() string) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -84,9 +94,7 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, remembe
 		return
 	}
 
-	// it's only a claimed sender until verification has been mutually confirmed
-	certificateHashClaimedSender := getSenderFingerprintCandidate()
-	if request.PIN == "" || request.Nonce == "" || len(certificateHashClaimedSender) != 64 {
+	if request.PIN == "" || request.Nonce == "" {
 		http.Error(w, "Missing required parameters", http.StatusBadRequest)
 		return
 	}
@@ -98,6 +106,17 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, remembe
 		if errors.Is(err, ErrTooManyAttempts) {
 			http.Error(w, "Too many requests", http.StatusTooManyRequests)
 		}
+		return
+	}
+
+	// do this after authorisation (PIN / nonce check) because getSenderFingerprintCandidate locks the current candidate,
+	// preventing it from being changed without discarding the session and starting over. this locking behaviour is to limit the attack
+	// surface of what is presented to a user and what may be pinned
+	// 
+	// it's only a claimed sender until verification has been mutually confirmed
+	certificateHashClaimedSender := lockAndGetSenderFingerprintCandidate()
+	if len(certificateHashClaimedSender) != 64 {
+		http.Error(w, "Missing required parameters", http.StatusBadRequest)
 		return
 	}
 
