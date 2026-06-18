@@ -152,12 +152,15 @@ func (s *service) Start(port int) error {
 		return errStart
 	}
 
+	// TODO (2026-06-18): change behaviour to wait to send ping response until confirm & continue
+
 	// do not require any client certs when server is freshly started
 	tlsConfig.ClientAuth = ctls.RequestClientCert
 	// NOTE cblgh(2026-03-15): set up a custom cert pool using the pinned cert?
 	// to allow use of tls.Config.ClientAuth: tls.RequireAndVerifyClientCert
 	// c.f https://stackoverflow.com/a/63317898
 	tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		log("number of certs being passed in: %d", len(rawCerts))
 		// currently pre-mtls and not strictly requiring cert
 		if (tlsConfig.ClientAuth == ctls.RequestClientCert && len(rawCerts) == 0) {
 			return nil
@@ -168,12 +171,9 @@ func (s *service) Start(port int) error {
 		}
 
 		log("VerifyPeerCertificate called")
-		encodedCert, err := tls.EncodeCertAsPEM(rawCerts[0])
-		if err != nil {
-			return err
-		}
-		calculatedPEMHash := sha256.Sum256(encodedCert)
-		hexPEMHash := fmt.Sprintf("%x", calculatedPEMHash)
+
+		sha256CertHash := sha256.Sum256(rawCerts[0])
+		hexSHA256CertHash := fmt.Sprintf("%x", sha256CertHash)
 
 		// in this section we use a mutex because we want to be sure to never set s.fingerprintCandidate to something else while it is being
 		// fetched by s.GetSenderFingerprintCandidate for being presented to the user
@@ -186,10 +186,10 @@ func (s *service) Start(port int) error {
 			// verification i.e. calling s.PinFingerprint() from registration/handler.go
 			if !s.fingerprintCandidateLockedIn {
 				// still pre-mtls but we have now have a candidate to use for senderFingerprint.
-				s.fingerprintCandidate = hexPEMHash
+				s.fingerprintCandidate = hexSHA256CertHash
 				log("sender fingerprint candidate %s", s.fingerprintCandidate)
 			} else {
-				if hexPEMHash != s.fingerprintCandidate {
+				if hexSHA256CertHash != s.fingerprintCandidate {
 					s.mu.Unlock()
 					return errors.New("Hash of incoming request certificate did not match candidate for sender certificate hash")
 				}
@@ -200,8 +200,8 @@ func (s *service) Start(port int) error {
 		s.mu.Unlock()
 
 		// we should only reach this point in the routine once we have established mTLS and have a pinned sender certificate hash
-		log("incoming cert hash\n%x\n", calculatedPEMHash)
-		if hexPEMHash != s.pinnedSenderCertificateHash {
+		log("incoming cert hash\n%x\n", sha256CertHash)
+		if hexSHA256CertHash != s.pinnedSenderCertificateHash {
 			return errors.New("Hash of incoming request certificate did not pinned sender certificate hash")
 		}
 		return nil
@@ -277,7 +277,7 @@ func (s *service) GetSenderFingerprintCandidate() string {
 	return candidate
 }
 
-// PinFingerprint pins the SHA256 hash of the PEM-encoded cert. The TLS config is changed to require a client cert, which necessitates restarting the https server instance.
+// PinFingerprint pins the hexadecimal-encoded SHA256 hash of the raw certificate bytes. The TLS config is changed to require a client cert, which necessitates restarting the https server instance.
 func (s *service) PinFingerprint(senderFingerprint string) error {
 	log("Pin fingerprint called")
 	if len(senderFingerprint) != 64 {
