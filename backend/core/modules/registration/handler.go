@@ -55,7 +55,8 @@ func (h *Handler) HandlePing(w http.ResponseWriter, r *http.Request) {
 		"state":     "waiting",
 	})
 
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"senderShowHash": true})
 }
 
 // rememberSenderFingerprint pins the sender certificate hash. calling changes tls config of package server, making it stricter in terms
