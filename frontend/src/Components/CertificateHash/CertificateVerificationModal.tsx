@@ -1,16 +1,24 @@
 import styled from 'styled-components';
 import { formatHash } from "../../util/util"
 import { SpinnerModal } from "../NearbySharing/SpinnerModal";
+import { ErrorDialog } from "../NearbySharing/ErrorDialog";
 
 // TODO (2026-06-17): implement waitingState below
 // confirm receiver | confirm sender
 // waitingState = (confirm_receiver && !SenderConfirmedReceiver)
-//
+
+interface NearbySharingError {
+    text: string;
+    button: string;
+    hasError: boolean;
+}
+
 interface CertificateVerificationModalProps {
   isOpen: boolean;
   receiverCertificateHash: string;
   senderCertificateHash: string;
   senderConfirmedReceiver: boolean;
+  nearbySharingError: NearbySharingError;
   modalState: 'CONFIRM_RECEIVER' | 'WAITING_FOR_SENDER_CONFIRM_RECEIVER' | 'CONFIRM_SENDER' | 'WAITING_FOR_SENDER_CONFIRM_SENDER'; 
   onConfirmReceiverHash: () => void;
   onConfirmSenderHash: () => void;
@@ -26,6 +34,7 @@ export function CertificateVerificationModal({
   receiverCertificateHash, 
   senderCertificateHash, 
   senderConfirmedReceiver,
+  nearbySharingError,
   modalState,
   onDiscard,
   onConfirmReceiverHash,
@@ -50,8 +59,16 @@ export function CertificateVerificationModal({
   }
 
   // TODO (2026-06-17): no timeout or error graphic is triggered currently
-  // TODO (2026-06-17): implement modal for 'Connection failed {context dependent text}'
-  // TODO (2026-06-18): do not display step 1 after step 2 is already being displayed
+  // TODO (2026-06-18): do not display step 1 after waiting has been started (or step 2 is already being displayed)
+  if (nearbySharingError.hasError) {
+      return (
+          <ErrorDialog 
+           text={nearbySharingError.text} 
+           buttonLabel={nearbySharingError.button} 
+           onClose={onDiscard}
+          />
+      )
+  }
   if (isWaitingForSender) {
       return (
       <SpinnerModal

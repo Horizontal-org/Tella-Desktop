@@ -17,6 +17,12 @@ interface FileInfo {
   fileType: string;
 }
 
+interface NearbySharingError {
+    text: string;
+    button: string;
+    hasError: boolean;
+}
+
 interface TransferData {
   sessionId: string;
   title: string;
@@ -40,6 +46,9 @@ export function useNearbySharing() {
   
   // Network state
   const [localIPs, setLocalIPs] = useState<string[]>([]);
+
+  // Error state text
+  const [nearbySharingError, setNearbySharingError] = useState<NearbySharingError>({ text: "", button: "", hasError: false});
   
   // Transfer state
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
@@ -60,6 +69,8 @@ export function useNearbySharing() {
         setLocalIPs(ips);
       } catch (error) {
         console.error('Failed to get network info:', error);
+        // TODO (2026-06-18): make sure that this will actually be seen (currently part of CertVerificationModal!)
+        setNearbySharingError({ text: "Failed to get network info and could not start server.", button: "Start over", hasError: true } as NearbySharingError)
       }
     };
 
@@ -69,6 +80,13 @@ export function useNearbySharing() {
       log("Ping received:", data);
       setShowVerificationModal(true);
       setModalState('CONFIRM_RECEIVER')
+    });
+
+    // TODO (2026-06-18): actually emit 'nearby-sharing-error' somewhere in the backend
+    const cleanupErrorListener = EventsOn("nearby-sharing-error", (data) => {
+      let err = data as NearbySharingError
+      err.hasError = true
+      setNearbySharingError(err)
     });
 
     // TODO (2026-06-17):
@@ -117,6 +135,7 @@ export function useNearbySharing() {
     return () => {
       cleanupFileReceived();
       cleanupPingListener();
+      cleanupErrorListener();
       cleanupRegisterListener();
       cleanupCertListener();
       cleanupPrepareRequest();
@@ -274,6 +293,7 @@ export function useNearbySharing() {
     localIPs,
     currentSessionId,
     transferData,
+    nearbySharingError,
     showVerificationModal,
     receiverCertificateHash,
     senderCertificateHash,

@@ -16,6 +16,7 @@ export function NearbySharing() {
     localIPs,
     currentSessionId,
     transferData,
+    nearbySharingError,
     showVerificationModal,
     receiverCertificateHash,
     senderCertificateHash,
@@ -91,6 +92,7 @@ export function NearbySharing() {
       </MainContent>
 
       <CertificateVerificationModal
+        nearbySharingError={nearbySharingError}
         isOpen={showVerificationModal}
         receiverCertificateHash={receiverCertificateHash}
         senderCertificateHash={senderCertificateHash}
@@ -103,8 +105,8 @@ export function NearbySharing() {
     </Container>
   );
 }
+ // TODO (2026-06-18): add CertificateVerificationModal inside one of the steps? instead of free-floating
 
-// TODO (2026-06-16): pass also the "Sender Certificate Hash" to CertificateVerificationModal (+ ensuing rework that enables that)
 
 const Container = styled.div`
   display: flex;
