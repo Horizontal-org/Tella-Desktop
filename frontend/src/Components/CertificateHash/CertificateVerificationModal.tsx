@@ -51,7 +51,7 @@ export function CertificateVerificationModal({
 
   // TODO (2026-06-17): no timeout or error graphic is triggered currently
   // TODO (2026-06-17): implement modal for 'Connection failed {context dependent text}'
-
+  // TODO (2026-06-18): do not display step 1 after step 2 is already being displayed
   if (isWaitingForSender) {
       return (
       <SpinnerModal
