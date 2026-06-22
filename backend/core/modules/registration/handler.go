@@ -73,7 +73,10 @@ func (h *Handler) HandlePing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) SendPingResponse() error {
-	h.pendingPingResponse <- struct{}{}
+	// channel should never be nil here, but then again sometimes 'never' does happen :)
+	if h.pendingPingResponse != nil {
+		h.pendingPingResponse <- struct{}{}
+	}
 	return nil
 }
 
