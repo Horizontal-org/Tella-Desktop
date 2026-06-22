@@ -3,10 +3,6 @@ import { formatHash } from "../../util/util"
 import { SpinnerModal } from "../NearbySharing/SpinnerModal";
 import { ErrorDialog } from "../NearbySharing/ErrorDialog";
 
-// TODO (2026-06-17): implement waitingState below
-// confirm receiver | confirm sender
-// waitingState = (confirm_receiver && !SenderConfirmedReceiver)
-
 interface NearbySharingError {
     text: string;
     button: string;
@@ -25,10 +21,6 @@ interface CertificateVerificationModalProps {
   onDiscard: () => void;
 }
 
-// TODO (2026-06-16):
-// confirmReceiverHash -> waiting -> waiting for register request to come in
-// confirmSenderHash -> waiting -> send register response (?) <-- current onConfirm
-//
 export function CertificateVerificationModal({ 
   isOpen, 
   receiverCertificateHash, 
@@ -59,7 +51,8 @@ export function CertificateVerificationModal({
   }
 
   // TODO (2026-06-17): no timeout or error graphic is triggered currently
-  // TODO (2026-06-18): do not display step 1 after waiting has been started (or step 2 is already being displayed)
+  // TODO (2026-06-18): implement logic somewhere in frontend to not display step 1 after waiting has been started (or step 2 is already being displayed)
+  // currently this is taken care of by the ping behaviour (only 1 ping request allowed to be responded to)
   if (nearbySharingError.hasError) {
       return (
           <ErrorDialog 
@@ -183,8 +176,6 @@ const Button = styled.button`
   min-width: 80px;
 `;
 
-
-// TODO (2026-06-17): dark bg for sender hash verif
 const HashContainer = styled.div<{ $isSender?: boolean }>`
   background-color: ${props => props.$isSender ? "#071013CC" : "#D9D9D9"};
   border: 1px solid #e9ecef;
