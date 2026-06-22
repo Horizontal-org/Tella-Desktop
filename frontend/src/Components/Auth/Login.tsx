@@ -74,7 +74,7 @@ export function Login({ onLoginSuccess, initialError = '' }: LoginProps) {
             type="submit" 
             disabled={loading}
           >
-            {loading ? 'Loading...' : 'LOG IN'}
+            {loading ? 'Loading...' : 'UNLOCK'}
           </AuthButton>
         </form>
       </AuthCard>
