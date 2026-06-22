@@ -27,7 +27,6 @@ export function NearbySharing() {
     handleVerificationConfirm,
     handleReceiverConfirmReceiver,
     handleVerificationDiscard,
-    handleWaitingForSenderCancel,
     handleFileRequestAccept,
     handleFileRequestReject,
     handleFileReceiving,

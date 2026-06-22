@@ -105,6 +105,9 @@ export function useNearbySharing() {
       setCurrentSessionId(requestData.sessionId);
     });
 
+    // TODO (2026-06-22): implement event in backend and handler here in frontend that signals that register timed out or
+    // max PIN registration attempts has been reached
+
     const cleanupFileReceived = EventsOn("file-received", () => {
       setTransferData(prev => {
           if (prev !== null) {
@@ -151,13 +154,14 @@ export function useNearbySharing() {
     return await stopServer();
   };
 
+  // {Receiver, Sender} Certificate Hash verification handlers
   const handleReceiverConfirmReceiver = async () => {
       await ManualConfirmationReceiverForReceiver()
       setModalState("CONFIRM_SENDER")
   }
-  // Receiver Certificate verification handlers
+
   const handleVerificationConfirm = async () => {
-    log("✅ Receiver Certificate verification CONFIRMED");
+    log("✅ Sender Certificate Hash: verification CONFIRMED");
     try {
       await ConfirmRegistration();
       setShowVerificationModal(false);
@@ -169,25 +173,8 @@ export function useNearbySharing() {
     }
   };
 
-  // TODO (2026-06-15): revise copy of handleVerificationDiscard to make sure is implemented properly
-  const handleWaitingForSenderCancel = async () => {
-    log("❌ Waiting for sender CANCELED");
-    try {
-      await RejectRegistration();
-    } catch (error) {
-      console.error("Failed to reject registration:", error);
-    }
-    // if rejected, reset state
-    setShowVerificationModal(false);
-    setModalState('CONFIRM_RECEIVER');
-    setSenderConfirmedReceiver(false);
-
-    await handleStopServer();
-    setCurrentStep('intro');
-  };
-
   const handleVerificationDiscard = async () => {
-    log("❌ Receiver Certificate verification DISCARDED");
+    log("❌ Verification DISCARDED");
     try {
       await RejectRegistration();
     } catch (error) {
@@ -302,7 +289,6 @@ export function useNearbySharing() {
     handleReceiverConfirmReceiver,
     handleVerificationConfirm,
     handleVerificationDiscard,
-    handleWaitingForSenderCancel,
     handleFileRequestAccept,
     handleFileRequestReject,
     handleFileReceiving,
