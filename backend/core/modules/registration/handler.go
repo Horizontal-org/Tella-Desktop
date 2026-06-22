@@ -32,6 +32,7 @@ type Handler struct {
 	service             Service
 	ctx                 context.Context
 	pendingRegistration *PendingRegistration
+	pendingPingResponse chan struct{}
 	mu                  sync.RWMutex
 }
 
@@ -42,21 +43,38 @@ func NewHandler(service Service, ctx context.Context) *Handler {
 	}
 }
 
-// TODO (2026-06-15): only respond to ping if not registered/registration not in progress
 func (h *Handler) HandlePing(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 
-	runtime.EventsEmit(h.ctx, "ping-received", map[string]interface{}{
-		"timestamp": time.Now().Unix(),
-		"message":   "Device attempting to connect",
-		"state":     "waiting",
-	})
+	// we only react & respond to the first ping request we receive.
+	//
+	// TODO (2026-06-22): would like to tie the confirmation action to the ip doing the ip request, so that we
+	// can selectively only respond to that ping request. the current frontend structure makes this a bit difficult / fraught.
+	// 
+	// barring that we decide to only react & respond to the first received ping request. this is also inline with the
+	// "single connection"-centric model of tella's p2p protocol. i.e. we only respond to ping if sender not
+	// registered/registration not in progress.
+	if h.pendingPingResponse == nil {
+		h.pendingPingResponse = make(chan struct{})
+		runtime.EventsEmit(h.ctx, "ping-received", map[string]interface{}{
+			"timestamp": time.Now().Unix(),
+			"message":   "Device attempting to connect",
+			"state":     "waiting",
+		})
+	}
 
+	// NOTE (2026-06-22): this style of solution only handles one ping response at a time: the first ping received
+	<-h.pendingPingResponse
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"senderShowHash": true})
+}
+
+func (h *Handler) SendPingResponse() error {
+	h.pendingPingResponse <- struct{}{}
+	return nil
 }
 
 // rememberSenderFingerprint pins the sender certificate hash. calling changes tls config of package server, making it stricter in terms

@@ -66,6 +66,10 @@ export function LockApp() {
   return window['go']['app']['App']['LockApp']();
 }
 
+export function ManualConfirmationReceiverForReceiver() {
+  return window['go']['app']['App']['ManualConfirmationReceiverForReceiver']();
+}
+
 export function RejectRegistration() {
   return window['go']['app']['App']['RejectRegistration']();
 }

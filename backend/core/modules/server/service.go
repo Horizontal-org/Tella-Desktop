@@ -152,8 +152,6 @@ func (s *service) Start(port int) error {
 		return errStart
 	}
 
-	// TODO (2026-06-18): change behaviour to wait to send ping response until confirm & continue
-
 	// do not require any client certs when server is freshly started
 	tlsConfig.ClientAuth = ctls.RequestClientCert
 	// NOTE cblgh(2026-03-15): set up a custom cert pool using the pinned cert?
@@ -262,6 +260,7 @@ func (s *service) startServer() error {
 	s.running = true
 	return nil
 }
+
 func (s *service) GetSenderFingerprintCandidate() string {
 	var candidate string
 	// use mutex because we want to be sure to never set s.fingerprintCandidate to something else while it is being

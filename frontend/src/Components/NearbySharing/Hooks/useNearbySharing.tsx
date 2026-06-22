@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from 'react-router-dom';
-import { GetLocalIPs, RejectRegistration, ConfirmRegistration, StopTransfer } from "../../../../wailsjs/go/app/App";
+import { GetLocalIPs, RejectRegistration, ManualConfirmationReceiverForReceiver, ConfirmRegistration, StopTransfer } from "../../../../wailsjs/go/app/App";
 import { EventsOn } from "../../../../wailsjs/runtime/runtime";
 import { useServer } from "../../../Contexts/ServerContext";
 import { log } from "../../../util/util"
@@ -9,6 +9,7 @@ type FlowStep = 'intro' | 'connect' | 'accept' | 'receive' | 'results';
 type ManualConfirmationState = 'CONFIRM_RECEIVER' | 'CONFIRM_SENDER' 
 
 // TODO (2026-06-16): with state transitions etc, make sure to also handle if "sender confirmed before receiver!"
+// TODO (2026-06-22): make desktop wait with sending ping response until "confirm & continue" is pressed
 
 interface FileInfo {
   id: string;
@@ -157,6 +158,7 @@ export function useNearbySharing() {
   };
 
   const handleReceiverConfirmReceiver = async () => {
+      await ManualConfirmationReceiverForReceiver()
       setModalState("CONFIRM_SENDER")
   }
   // Receiver Certificate verification handlers
