@@ -8,9 +8,6 @@ import { log } from "../../../util/util"
 type FlowStep = 'intro' | 'connect' | 'accept' | 'receive' | 'results';
 type ManualConfirmationState = 'CONFIRM_RECEIVER' | 'CONFIRM_SENDER' 
 
-// TODO (2026-06-16): with state transitions etc, make sure to also handle if "sender confirmed before receiver!"
-// TODO (2026-06-22): make desktop wait with sending ping response until "confirm & continue" is pressed
-
 interface FileInfo {
   id: string;
   fileName: string;
@@ -90,9 +87,6 @@ export function useNearbySharing() {
       setNearbySharingError(err)
     });
 
-    // TODO (2026-06-17):
-    // * handle early confirm by sender in way that doesn't fuck up effects
-    // * pass senderCertificateHash from golang in the Emit
     const cleanupRegisterListener = EventsOn("register-request-received", (data) => {
       log("Register request received:", data);
       setSenderCertificateHash(data.senderCertificateHash);
