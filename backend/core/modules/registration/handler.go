@@ -43,6 +43,16 @@ func NewHandler(service Service, ctx context.Context) *Handler {
 	}
 }
 
+func (h *Handler) Reset() {
+	h.mu.Lock()
+	if h.pendingPingResponse != nil {
+		close(h.pendingPingResponse)
+	}
+	h.pendingPingResponse = nil
+	h.pendingRegistration = nil
+	h.mu.Unlock()
+}
+
 func (h *Handler) HandlePing(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)

@@ -123,6 +123,9 @@ func (s *service) Start(port int) error {
 		return errStart
 	}
 
+	// reset registrationHandler state
+	s.registrationHandler.Reset()
+
 	// Generate new PIN for each start
 	s.pin = generateRandomPIN()
 	s.registrationService.SetPINCode(s.pin)
