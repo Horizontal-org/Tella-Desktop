@@ -138,10 +138,13 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, remembe
 	if authorised, err := h.service.IsAuthorised(request.PIN, request.Nonce); !authorised {
 		if errors.Is(err, ErrPinInvalid) {
 			http.Error(w, "Invalid PIN", http.StatusUnauthorized)
-			// reset ping channel to allow for another attempt
+			// TODO (2025-06-22): reset ping channel to allow for another attempt
 			// TODO (2026-06-22): maybe reset isn't actually needed - does mobile send another ping request if PIN is incorrect
 			// or does it simply send another register request?
-			h.ResetPingResponse()
+			// 
+			// NOTE FOR REVIEWERS: this has been commented out until the team decides whether another connection attempt with
+			// a change PIN is possible with the current sender interfaces - seems like "discard & start over" renders making another attempt moot
+			// h.ResetPingResponse()
 		}
 		if errors.Is(err, ErrTooManyAttempts) {
 			http.Error(w, "Too many requests", http.StatusTooManyRequests)
