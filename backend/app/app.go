@@ -121,6 +121,15 @@ func (a *App) ManualConfirmationReceiverForReceiver() error {
 	return a.registrationHandler.SendPingResponse()
 }
 
+// called when we cancel waiting for the sender but still keep the server open
+func (a *App) ManualConfirmationCancelWaiting() error {
+	if a.registrationHandler == nil {
+		return errRegistrationNotInit
+	}
+	a.registrationHandler.ResetPingResponse()
+	return nil
+}
+
 func (a *App) RejectRegistration() error {
 	if a.registrationHandler == nil {
 		return errRegistrationNotInit

@@ -43,12 +43,16 @@ func NewHandler(service Service, ctx context.Context) *Handler {
 	}
 }
 
-func (h *Handler) Reset() {
-	h.mu.Lock()
+func (h *Handler) ResetPingResponse() {
 	if h.pendingPingResponse != nil {
 		close(h.pendingPingResponse)
 	}
 	h.pendingPingResponse = nil
+}
+
+func (h *Handler) Reset() {
+	h.mu.Lock()
+	h.ResetPingResponse()
 	h.pendingRegistration = nil
 	h.mu.Unlock()
 }
@@ -134,7 +138,11 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, remembe
 	if authorised, err := h.service.IsAuthorised(request.PIN, request.Nonce); !authorised {
 		if errors.Is(err, ErrPinInvalid) {
 			http.Error(w, "Invalid PIN", http.StatusUnauthorized)
-		} 
+			// reset ping channel to allow for another attempt
+			// TODO (2026-06-22): maybe reset isn't actually needed - does mobile send another ping request if PIN is incorrect
+			// or does it simply send another register request?
+			h.ResetPingResponse()
+		}
 		if errors.Is(err, ErrTooManyAttempts) {
 			http.Error(w, "Too many requests", http.StatusTooManyRequests)
 		}
