@@ -1,37 +1,74 @@
 import styled from 'styled-components';
+import { formatHash } from "../../util/util"
+import { SpinnerModal } from "../NearbySharing/SpinnerModal";
+import { ErrorDialog } from "../NearbySharing/ErrorDialog";
+
+interface NearbySharingError {
+    text: string;
+    button: string;
+    hasError: boolean;
+}
 
 interface CertificateVerificationModalProps {
   isOpen: boolean;
-  certificateHash: string;
-  modalState: 'waiting' | 'confirm'; 
-  onConfirm: () => void;
+  receiverCertificateHash: string;
+  senderCertificateHash: string;
+  senderConfirmedReceiver: boolean;
+  nearbySharingError: NearbySharingError;
+  modalState: 'CONFIRM_RECEIVER' | 'WAITING_FOR_SENDER_CONFIRM_RECEIVER' | 'CONFIRM_SENDER' | 'WAITING_FOR_SENDER_CONFIRM_SENDER'; 
+  onConfirmReceiverHash: () => void;
+  onConfirmSenderHash: () => void;
   onDiscard: () => void;
-}
-
-function formatHash(hashString: string): string {
-    const input = [];
-    for (let i = 0; i <= hashString.length; i += 4) {
-        // grab groups of 4 characters each
-        let entry = hashString.slice(i, i+4) + " ";
-        // output a newline after four groups of 4
-        if (((i+4) % 16) === 0) {
-            entry += "\n";
-        }
-        input.push(entry);
-    }
-    // trim the last newline and return as a string
-    return input.join("").trim();
 }
 
 export function CertificateVerificationModal({ 
   isOpen, 
-  certificateHash, 
+  receiverCertificateHash, 
+  senderCertificateHash, 
+  senderConfirmedReceiver,
+  nearbySharingError,
   modalState,
-  onConfirm, 
-  onDiscard 
+  onDiscard,
+  onConfirmReceiverHash,
+  onConfirmSenderHash
 }: CertificateVerificationModalProps) {
   if (!isOpen) return null;
 
+  const getHashForVerification = () => {
+      if (modalState === "CONFIRM_RECEIVER") { return receiverCertificateHash }
+      if (modalState === "CONFIRM_SENDER") { return senderCertificateHash }
+      return ""
+  }
+
+  const isWaitingForSender = (
+      modalState === "CONFIRM_SENDER" && !senderConfirmedReceiver
+  )
+
+  const getStepTitle = () => { 
+      if (modalState === "CONFIRM_RECEIVER") { return "Step 1: Confirm recipient hash" }
+      if (modalState === "CONFIRM_SENDER") { return "Step 2: Confirm sender hash" }
+      return "Step X: Confirm Y"
+  }
+
+  // TODO (2026-06-17): no timeout or error graphic is triggered currently
+  // TODO (2026-06-18): implement logic somewhere in frontend to not display step 1 after waiting has been started (or step 2 is already being displayed)
+  // currently this is taken care of by the ping behaviour (only 1 ping request allowed to be responded to)
+  if (nearbySharingError.hasError) {
+      return (
+          <ErrorDialog 
+           text={nearbySharingError.text} 
+           buttonLabel={nearbySharingError.button} 
+           onClose={onDiscard}
+          />
+      )
+  }
+  if (isWaitingForSender) {
+      return (
+      <SpinnerModal
+        onCancel={onDiscard}
+      />
+      )
+  }
   return (
     <ModalOverlay>
       <ModalContainer>
@@ -39,36 +76,39 @@ export function CertificateVerificationModal({
           <Title>Verification</Title>
         </ModalHeader>
         
-        <ModalContent>
-          <Description>
-          To ensure that the connection is safe, make sure that the sequence of numbers below matches what is shown on the other device.
-          </Description>
-          
-          <HashContainer>
-            <pre>
-                <HashText>{formatHash(certificateHash)}</HashText>
-            </pre>
-          </HashContainer>
-          
-          <Warning>
-          If the sequences do not match, the connection may not be secure and should be discarded. 
-          </Warning>
-        </ModalContent>
-        
+        <Description> 
+        {getStepTitle()}
+        </Description>
+
+        <HashContainer $isSender={modalState === "CONFIRM_SENDER"}>
+        <pre>
+        <HashText $isSender={modalState === "CONFIRM_SENDER"}>{formatHash(getHashForVerification())}</HashText>
+        </pre>
+        </HashContainer>
+
+        <Warning>
+            Make sure that this sequence matches what is shown on the sender's device.
+        </Warning>
+        <Warning>
+            If the sequence on your device does not match the sequence on the sender's device, the connection may not be secure and should be discarded.
+        </Warning>
+
         <ModalFooter>
           <DiscardButton onClick={onDiscard}>
             DISCARD AND START OVER
           </DiscardButton>
           
-          {modalState === 'waiting' ? (
-            <WaitingButton disabled>
-              WAITING FOR THE SENDER...
-            </WaitingButton>
-          ) : (
-            <ConfirmButton onClick={onConfirm}>
-              CONFIRM AND CONNECT
-            </ConfirmButton>
-          )}
+          { modalState === "CONFIRM_RECEIVER" ? (
+              <ConfirmButton onClick={onConfirmReceiverHash}>
+              CONFIRM AND CONTINUE
+              </ConfirmButton>
+          )
+              : (
+                  <ConfirmButton onClick={onConfirmSenderHash}>
+                  CONFIRM AND CONNECT
+                  </ConfirmButton>
+              )
+          }
         </ModalFooter>
       </ModalContainer>
     </ModalOverlay>
@@ -92,17 +132,16 @@ const ModalOverlay = styled.div`
 const ModalContainer = styled.div`
   background-color: white;
   border-radius: 8px;
-  max-width: 500px;
+  max-width: 550px;
   width: 90%;
   max-height: 80vh;
   overflow: hidden;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  padding: 2rem 4rem 2rem 4rem;
 `;
 
 const ModalHeader = styled.div`
-  padding: 1.5rem;
-  border-bottom: 1px solid #e9ecef;
-  text-align: center;
+  padding-top: 1.5rem;
 `;
 
 const Title = styled.h2`
@@ -112,57 +151,56 @@ const Title = styled.h2`
   font-weight: 600;
 `;
 
-const ModalContent = styled.div`
-  padding: 2rem 1.5rem;
-  text-align: center;
-`;
-
 const Description = styled.p`
-  color: #6c757d;
-  margin-bottom: 2rem;
+  color: #5F6368;
+  font-weight: 600;
   font-size: 1rem;
   line-height: 1.5;
 `;
 
-const HashContainer = styled.div`
-  background-color: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 1.5rem;
+const ModalFooter = styled.div`
+  padding: 1.5rem 0;
+  display: flex;
+  gap: 1rem;
+  justify-content: end;
 `;
 
-const HashText = styled.code`
+const Button = styled.button`
+  padding: 0.75rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  text-transform: uppercase;
+  min-width: 80px;
+`;
+
+const HashContainer = styled.div<{ $isSender?: boolean }>`
+  background-color: ${props => props.$isSender ? "#071013CC" : "#D9D9D9"};
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 0rem 1.5rem;
+  display: flex;
+  justify-content: center;
+`;
+
+const HashText = styled.div<{ $isSender?: boolean }>`
   font-family: 'Courier New', monospace;
   font-size: 1rem;
   color: #212529;
+  color: ${props => props.$isSender ? "white" : "black"};
   word-break: break-all;
   line-height: 1.6;
 `;
 
 const Warning = styled.p`
-  color: #6c757d;
-  font-size: 0.9rem;
+  color: #5F6368;
+  font-size: 1rem;
   line-height: 1.5;
   margin: 0;
-`;
-
-const ModalFooter = styled.div`
-  padding: 1.5rem;
-  border-top: 1px solid #e9ecef;
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-`;
-
-const Button = styled.button`
-  padding: 0.75rem 1.5rem;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  text-transform: uppercase;
-  min-width: 140px;
+  padding-top: 1rem;
+  text-align: left;
 `;
 
 const DiscardButton = styled(Button)`

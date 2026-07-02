@@ -50,8 +50,8 @@ func GenerateTLSConfig(ctx context.Context, config Config) (*tls.Config, error) 
 	//generate hash of certificate
 	hash := sha256.Sum256(cert.Certificate[0])
 	hashStr := hex.EncodeToString(hash[:])
-	log("Hash value: %s", hashStr)
-	runtime.EventsEmit(ctx, "certificate-hash", hashStr)
+	log("Receiver certificate hash: %s", hashStr)
+	runtime.EventsEmit(ctx, "receiver-certificate-hash", hashStr)
 
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},

@@ -31,6 +31,7 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
     }
   };
 
+  // TODO (2026-06-17): add centered visual line connecting each interior step circle
   return (
     <StepIndicatorContainer>
       {FLOW_STEPS.map((step, index) => {

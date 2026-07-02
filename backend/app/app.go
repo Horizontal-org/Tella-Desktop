@@ -112,6 +112,15 @@ func (a *App) ConfirmRegistration() error {
 	return a.registrationHandler.ConfirmRegistration()
 }
 
+// called as part of manual connection, when the receiver has confirmed the "receiver cert hash verification" by
+// pressing button "confirm and continue"
+func (a *App) ManualConfirmationReceiverForReceiver() error {
+	if a.registrationHandler == nil {
+		return errRegistrationNotInit
+	}
+	return a.registrationHandler.SendPingResponse()
+}
+
 func (a *App) RejectRegistration() error {
 	if a.registrationHandler == nil {
 		return errRegistrationNotInit

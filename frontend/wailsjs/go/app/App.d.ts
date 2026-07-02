@@ -35,6 +35,8 @@ export function IsServerRunning():Promise<boolean>;
 
 export function LockApp():Promise<void>;
 
+export function ManualConfirmationReceiverForReceiver():Promise<void>;
+
 export function RejectRegistration():Promise<void>;
 
 export function RejectTransfer(arg1:string):Promise<void>;

@@ -7,6 +7,7 @@ import { ConnectStep } from "./Connect";
 import { IntroStep } from "./Intro";
 import { ResultsStep } from "./Results";
 import { useNearbySharing } from "./Hooks/useNearbySharing"
+import { log } from "../../util/util"
 
 export function NearbySharing() {
   const {
@@ -15,15 +16,16 @@ export function NearbySharing() {
     localIPs,
     currentSessionId,
     transferData,
+    nearbySharingError,
     showVerificationModal,
-    certificateHash,
+    receiverCertificateHash,
+    senderCertificateHash,
+    senderConfirmedReceiver,
     modalState,
-    isUsingQRMode,
-
-    handleQRModeChange,
     
     handleContinue,
     handleVerificationConfirm,
+    handleReceiverConfirmReceiver,
     handleVerificationDiscard,
     handleFileRequestAccept,
     handleFileRequestReject,
@@ -54,9 +56,7 @@ export function NearbySharing() {
           <ConnectStep
             serverRunning={serverRunning}
             localIPs={localIPs}
-            certificateHash={certificateHash}
-            isQRMode={isUsingQRMode}
-            onModeChange={handleQRModeChange}
+            certificateHash={receiverCertificateHash}
           />
         )}
         
@@ -91,15 +91,21 @@ export function NearbySharing() {
       </MainContent>
 
       <CertificateVerificationModal
+        nearbySharingError={nearbySharingError}
         isOpen={showVerificationModal}
-        certificateHash={certificateHash}
+        receiverCertificateHash={receiverCertificateHash}
+        senderCertificateHash={senderCertificateHash}
+        senderConfirmedReceiver={senderConfirmedReceiver}
         modalState={modalState}
-        onConfirm={handleVerificationConfirm}
+        onConfirmSenderHash={handleVerificationConfirm}
+        onConfirmReceiverHash={handleReceiverConfirmReceiver}
         onDiscard={handleVerificationDiscard}
       />
     </Container>
   );
 }
+ // TODO (2026-06-18): add CertificateVerificationModal inside one of the steps? instead of free-floating
+
 
 const Container = styled.div`
   display: flex;
@@ -112,20 +118,16 @@ const Container = styled.div`
 const Header = styled.div`
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   position: relative;
-  padding: 1rem 2rem;
+  padding: 2rem 2rem 0rem 2rem;
   background-color: white;
-  border-bottom: 1px solid #CFCFCF;
 `;
 
 const Title = styled.h1`
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
   font-size: 1.5rem;
-  font-weight: 600;
-  color: #212529;
+  font-weight: 700;
+  color: ##404040;
   margin: 0;
 `;
 

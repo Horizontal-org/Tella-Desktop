@@ -131,11 +131,16 @@ application.
 The application implements the [Tella Nearby Sharing protocol](https://github.com/Horizontal-org/Tella-P2P-Protocol) with the following endpoints:
 
 - Default Port: 53320
-- `POST /api/v1/ping` - Initial handshake for manual connections
-- `POST /api/v1/register` - Device registration with PIN authentication
-- `POST /api/v1/prepare-upload` - Prepare file transfer session
-- `PUT /api/v1/upload` - File upload with binary data
-* `POST /api/v1/close-connection`
+- `POST /api/v2/ping` - Initial handshake for manual connections
+- `POST /api/v2/register` - Device registration with PIN authentication
+- `POST /api/v2/prepare-upload` - Prepare file transfer session
+- `PUT /api/v2/upload` - File upload with binary data
+- `POST /api/v2/close-connection`
+
+Legacy routes (transition to v2 is incompatible with v1):
+
+- `POST /api/v1/ping` - returns 400 Client error
+- `POST /api/v1/register` - returns 403 Rejected
 
 ## Platform-Specific Notes
 

@@ -310,7 +310,6 @@ func ExportSingleFile(db *sql.DB, dbKey []byte, id int64, tvault *os.File, expor
 	decryptedData, fileName, err := decryptAndGetFilename(db, id, dbKey, tvault)
 	if err != nil {
 		return "", err
-		return "", errExportFile
 	}
 	defer util.SecureZeroMemory(decryptedData)
 

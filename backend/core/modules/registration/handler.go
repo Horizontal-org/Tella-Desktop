@@ -32,6 +32,7 @@ type Handler struct {
 	service             Service
 	ctx                 context.Context
 	pendingRegistration *PendingRegistration
+	pendingPingResponse chan struct{}
 	mu                  sync.RWMutex
 }
 
@@ -42,27 +43,69 @@ func NewHandler(service Service, ctx context.Context) *Handler {
 	}
 }
 
+func (h *Handler) ResetPingResponse() {
+	if h.pendingPingResponse != nil {
+		close(h.pendingPingResponse)
+	}
+	h.pendingPingResponse = nil
+}
+
+func (h *Handler) Reset() {
+	h.mu.Lock()
+	h.ResetPingResponse()
+	h.pendingRegistration = nil
+	h.mu.Unlock()
+}
+
 func (h *Handler) HandlePing(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 
-	runtime.EventsEmit(h.ctx, "ping-received", map[string]interface{}{
-		"timestamp": time.Now().Unix(),
-		"message":   "Device attempting to connect",
-		"state":     "waiting",
-	})
+	// we only react & respond to the first ping request we receive.
+	//
+	// TODO (2026-06-22): would like to tie the confirmation action to the ip doing the ip request, so that we
+	// can selectively only respond to that ping request. the current frontend structure makes this a bit difficult / fraught.
+	// 
+	// barring that we decide to only react & respond to the first received ping request. this is also inline with the
+	// "single connection"-centric model of tella's p2p protocol. i.e. we only respond to ping if sender not
+	// registered/registration not in progress.
+	if h.pendingPingResponse == nil {
+		h.pendingPingResponse = make(chan struct{})
+		runtime.EventsEmit(h.ctx, "ping-received", map[string]interface{}{
+			"timestamp": time.Now().Unix(),
+			"message":   "Device attempting to connect",
+			"state":     "waiting",
+		})
+	}
 
+	// NOTE (2026-06-22): this style of solution only handles one ping response at a time: the first ping received
+	<-h.pendingPingResponse
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(struct {
-		Status string `json:"status"`
-	}{
-		Status: "ok",
-	})
+	json.NewEncoder(w).Encode(map[string]bool{"senderShowHash": true})
 }
 
-func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) SendPingResponse() error {
+	// channel should never be nil here, but then again sometimes 'never' does happen :)
+	if h.pendingPingResponse != nil {
+		h.pendingPingResponse <- struct{}{}
+	}
+	return nil
+}
+
+// rememberSenderFingerprint pins the sender certificate hash. calling changes tls config of package server, making it stricter in terms
+// of requiring tls client certs. the tls config change requires restarting the https server instance.
+//
+// lockAndGetSenderFingerprintCandidate locks the current candidate for sender fingerprint,
+// preventing it from being changed without discarding the session and starting over. 
+// this locking behaviour is intended to limit the attack surface and prevent mismatches in what is presented to a user
+// and what may be pinned. 
+//
+// we lock after authorisation to limit attacks that are intended to sabotage the connection
+// establishment by prematurely forcing the fingerprint to be locked and thus would prevent an authentic sender from
+// having their fingerprint from being chosen.
+func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request, rememberSenderFingerprint func (string) error, lockAndGetSenderFingerprintCandidate func() string) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -92,7 +135,34 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store the pending registration
+	if authorised, err := h.service.IsAuthorised(request.PIN, request.Nonce); !authorised {
+		if errors.Is(err, ErrPinInvalid) {
+			http.Error(w, "Invalid PIN", http.StatusUnauthorized)
+			// TODO (2025-06-22): reset ping channel to allow for another attempt
+			// TODO (2026-06-22): maybe reset isn't actually needed - does mobile send another ping request if PIN is incorrect
+			// or does it simply send another register request?
+			// 
+			// NOTE FOR REVIEWERS: this has been commented out until the team decides whether another connection attempt with
+			// a change PIN is possible with the current sender interfaces - seems like "discard & start over" renders making another attempt moot
+			// h.ResetPingResponse()
+		}
+		if errors.Is(err, ErrTooManyAttempts) {
+			http.Error(w, "Too many requests", http.StatusTooManyRequests)
+		}
+		return
+	}
+
+	// do this after authorisation (PIN / nonce check) because getSenderFingerprintCandidate locks the current candidate,
+	// preventing it from being changed without discarding the session and starting over. this locking behaviour is to limit the attack
+	// surface of what is presented to a user and what may be pinned
+	// 
+	// it's only a claimed sender until verification has been mutually confirmed
+	certificateHashClaimedSender := lockAndGetSenderFingerprintCandidate()
+	if len(certificateHashClaimedSender) != 64 {
+		http.Error(w, "Missing required parameters", http.StatusBadRequest)
+		return
+	}
+
 	h.mu.Lock()
 	h.pendingRegistration = &PendingRegistration{
 		PIN:      request.PIN,
@@ -107,6 +177,7 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		"timestamp": time.Now().Unix(),
 		"message":   "Sender is requesting to register",
 		"state":     "confirm",
+		"senderCertificateHash": certificateHashClaimedSender,
 	})
 
 	// Wait for user confirmation or timeout
@@ -117,6 +188,19 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 		h.mu.Lock()
 		h.pendingRegistration = nil
+		// if we're sending a successful response it was because the pin was valid!
+		// since PIN was valid, we can now save the sender's certificate hash and restart the server
+		// note: since `rememberSenderFingerprint` requires a restart of the https server, we likely have to send the
+		// response before restarting?
+		err = rememberSenderFingerprint(certificateHashClaimedSender)
+		// TODO cblgh(2026-03-15): figure out something less catastrophic for the app than just panic here. but https
+		// handler is a hard place to recover from the death of the https server ^^'
+		//
+		// maybe emit some kind of event to frontend to signal catastrophic failure && need to restart?
+		// runtime.EventsEmit(h.ctx, "register-request-received", map[string]interface{}{
+		if err != nil {
+			panic(err)
+		}
 		h.mu.Unlock()
 
 	case err := <-h.pendingRegistration.Error:

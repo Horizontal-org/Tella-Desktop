@@ -1,18 +1,24 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from 'react-router-dom';
-import { GetLocalIPs, RejectRegistration, ConfirmRegistration, StopTransfer } from "../../../../wailsjs/go/app/App";
+import { GetLocalIPs, RejectRegistration, ManualConfirmationReceiverForReceiver, ConfirmRegistration, StopTransfer } from "../../../../wailsjs/go/app/App";
 import { EventsOn } from "../../../../wailsjs/runtime/runtime";
 import { useServer } from "../../../Contexts/ServerContext";
 import { log } from "../../../util/util"
 
 type FlowStep = 'intro' | 'connect' | 'accept' | 'receive' | 'results';
-type ModalState = 'waiting' | 'confirm';
+type ManualConfirmationState = 'CONFIRM_RECEIVER' | 'CONFIRM_SENDER' 
 
 interface FileInfo {
   id: string;
   fileName: string;
   size: number;
   fileType: string;
+}
+
+interface NearbySharingError {
+    text: string;
+    button: string;
+    hasError: boolean;
 }
 
 interface TransferData {
@@ -38,6 +44,9 @@ export function useNearbySharing() {
   
   // Network state
   const [localIPs, setLocalIPs] = useState<string[]>([]);
+
+  // Error state text
+  const [nearbySharingError, setNearbySharingError] = useState<NearbySharingError>({ text: "", button: "", hasError: false});
   
   // Transfer state
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
@@ -45,12 +54,10 @@ export function useNearbySharing() {
   
   // Certificate verification state
   const [showVerificationModal, setShowVerificationModal] = useState(false);
-  const [certificateHash, setCertificateHash] = useState<string>('');
-  const [modalState, setModalState] = useState<ModalState>('waiting');
-
-  // Connection mode state
-  const [isUsingQRMode, setIsUsingQRMode] = useState(true);
-  const isUsingQRModeRef = useRef(true);
+  const [receiverCertificateHash, setReceiverCertificateHash] = useState<string>('');
+  const [senderCertificateHash, setSenderCertificateHash] = useState<string>('');
+  const [modalState, setModalState] = useState<ManualConfirmationState>('CONFIRM_RECEIVER');
+  const [senderConfirmedReceiver, setSenderConfirmedReceiver] = useState<boolean>(false)
 
   // Initialize network info and event listeners
   useEffect(() => {
@@ -60,45 +67,35 @@ export function useNearbySharing() {
         setLocalIPs(ips);
       } catch (error) {
         console.error('Failed to get network info:', error);
+        // TODO (2026-06-18): make sure that this will actually be seen (currently part of CertVerificationModal!)
+        setNearbySharingError({ text: "Failed to get network info and could not start server.", button: "Start over", hasError: true } as NearbySharingError)
       }
     };
 
     fetchNetworkInfo();
 
     const cleanupPingListener = EventsOn("ping-received", (data) => {
-      log("Ping received from iOS device:", data);
+      log("Ping received:", data);
       setShowVerificationModal(true);
-      setModalState('waiting')
+      setModalState('CONFIRM_RECEIVER')
+    });
+
+    // TODO (2026-06-18): actually emit 'nearby-sharing-error' somewhere in the backend
+    const cleanupErrorListener = EventsOn("nearby-sharing-error", (data) => {
+      let err = data as NearbySharingError
+      err.hasError = true
+      setNearbySharingError(err)
     });
 
     const cleanupRegisterListener = EventsOn("register-request-received", (data) => {
       log("Register request received:", data);
-      log("Current QR mode:", isUsingQRModeRef.current);
-
-      if (isUsingQRModeRef.current) {
-        log("🔗 QR mode active - auto-confirming registration");
-        // Auto-confirm for QR mode
-        ConfirmRegistration()
-          .then(() => {
-            log("✅ QR registration confirmed successfully");
-            setCurrentStep('accept');
-          })
-          .catch((error) => {
-            console.error("❌ Failed to auto-confirm QR registration:", error);
-            // Fall back to manual confirmation
-            setModalState('confirm');
-            setShowVerificationModal(true);
-          });
-      } else {
-        log("📱 Manual mode - showing confirmation modal");
-        // Manual mode - show certificate verification modal
-        setModalState('confirm');
-      }
+      setSenderCertificateHash(data.senderCertificateHash);
+      setSenderConfirmedReceiver(true);
     });
 
-    const cleanupCertListener = EventsOn("certificate-hash", (data) => {
-      log("Certificate hash received:", data);
-      setCertificateHash(data.toString());
+    const cleanupCertListener = EventsOn("receiver-certificate-hash", (data) => {
+      log("Receiver Certificate hash received:", data);
+      setReceiverCertificateHash(data.toString());
     });
 
     const cleanupPrepareRequest = EventsOn("prepare-upload-request", (data) => {
@@ -107,6 +104,9 @@ export function useNearbySharing() {
       setTransferData(requestData);
       setCurrentSessionId(requestData.sessionId);
     });
+
+    // TODO (2026-06-22): implement event in backend and handler here in frontend that signals that register timed out or
+    // max PIN registration attempts has been reached
 
     const cleanupFileReceived = EventsOn("file-received", () => {
       setTransferData(prev => {
@@ -133,6 +133,7 @@ export function useNearbySharing() {
     return () => {
       cleanupFileReceived();
       cleanupPingListener();
+      cleanupErrorListener();
       cleanupRegisterListener();
       cleanupCertListener();
       cleanupPrepareRequest();
@@ -153,9 +154,14 @@ export function useNearbySharing() {
     return await stopServer();
   };
 
-  // Certificate verification handlers
+  // {Receiver, Sender} Certificate Hash verification handlers
+  const handleReceiverConfirmReceiver = async () => {
+      await ManualConfirmationReceiverForReceiver()
+      setModalState("CONFIRM_SENDER")
+  }
+
   const handleVerificationConfirm = async () => {
-    log("✅ Certificate verification CONFIRMED");
+    log("✅ Sender Certificate Hash: verification CONFIRMED");
     try {
       await ConfirmRegistration();
       setShowVerificationModal(false);
@@ -168,15 +174,18 @@ export function useNearbySharing() {
   };
 
   const handleVerificationDiscard = async () => {
-    log("❌ Certificate verification DISCARDED");
+    log("❌ Verification DISCARDED");
     try {
       await RejectRegistration();
     } catch (error) {
       console.error("Failed to reject registration:", error);
     }
     
+    // reset state
     setShowVerificationModal(false);
-    setModalState('waiting');
+    setModalState('CONFIRM_RECEIVER');
+    setSenderConfirmedReceiver(false);
+
     await handleStopServer();
     setCurrentStep('intro');
   };
@@ -252,11 +261,11 @@ export function useNearbySharing() {
     setCurrentSessionId('');
     setTransferData(null);
     setShowVerificationModal(false);
-    setCertificateHash('');
-    setModalState('waiting');
+    setReceiverCertificateHash('');
+    setSenderCertificateHash('');
+    setModalState('CONFIRM_RECEIVER');
     setCurrentStep('intro');
-    setIsUsingQRMode(true);
-    isUsingQRModeRef.current = true;
+    setSenderConfirmedReceiver(false);
   };
 
   return {
@@ -267,23 +276,17 @@ export function useNearbySharing() {
     localIPs,
     currentSessionId,
     transferData,
+    nearbySharingError,
     showVerificationModal,
-    certificateHash,
+    receiverCertificateHash,
+    senderCertificateHash,
+    senderConfirmedReceiver,
     modalState,
-    isUsingQRMode,
-    
-    // State setters
 
-    // QR mode handler
-    handleQRModeChange: (isQR: boolean) => {
-      setIsUsingQRMode(isQR);
-      isUsingQRModeRef.current = isQR;
-      log("QR mode changed to:", isQR);
-    },
-    
     // Actions
     handleBack,
     handleContinue,
+    handleReceiverConfirmReceiver,
     handleVerificationConfirm,
     handleVerificationDiscard,
     handleFileRequestAccept,

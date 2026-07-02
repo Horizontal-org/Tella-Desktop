@@ -6,7 +6,7 @@ import (
 
 func Log(usageContext, msg string, args ...interface{}) {
 	if IsDevelop() {
-		line := fmt.Sprintf(msg)
+		line := msg
 		if len(args) > 0 {
 			line = fmt.Sprintf(msg, args...)
 		}

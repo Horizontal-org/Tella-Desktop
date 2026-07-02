@@ -5,6 +5,8 @@ import (
 	crand "crypto/rand"
 	ctls "crypto/tls"
 	"fmt"
+	"crypto/x509"
+	"crypto/sha256"
 	"math/big"
 	"net"
 	"net/http"
@@ -28,6 +30,11 @@ import (
 var log = devlog.Logger("server")
 
 type service struct {
+	pinnedSenderCertificateHash		string // pinned fingerprint for sender
+	// fingerprintCandidate is derived from incoming requests when 
+	// tlsConfig.ClientAuth is set to RequestClientCert pre-mTLS establishment (post mTLS config is set to RequireAnyClientCert)
+	fingerprintCandidate string 
+	fingerprintCandidateLockedIn bool
 	limitingMiddleware  http.Handler 
 	nonceManager        *nonces.NonceManager
 	limiter             *RateLimitingWare
@@ -116,6 +123,9 @@ func (s *service) Start(port int) error {
 		return errStart
 	}
 
+	// reset registrationHandler state
+	s.registrationHandler.Reset()
+
 	// Generate new PIN for each start
 	s.pin = generateRandomPIN()
 	s.registrationService.SetPINCode(s.pin)
@@ -139,9 +149,63 @@ func (s *service) Start(port int) error {
 		Organization: []string{"Tella"},
 		IPAddresses:  ips,
 	})
+
 	if err != nil {
 		log("failed to generate TLS config: %v", err)
 		return errStart
+	}
+
+	// do not require any client certs when server is freshly started
+	tlsConfig.ClientAuth = ctls.RequestClientCert
+	// NOTE cblgh(2026-03-15): set up a custom cert pool using the pinned cert?
+	// to allow use of tls.Config.ClientAuth: tls.RequireAndVerifyClientCert
+	// c.f https://stackoverflow.com/a/63317898
+	tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		log("number of certs being passed in: %d", len(rawCerts))
+		// currently pre-mtls and not strictly requiring cert
+		if (tlsConfig.ClientAuth == ctls.RequestClientCert && len(rawCerts) == 0) {
+			return nil
+		}
+		// we're post-mtls, this should not occur for legitimate requests
+		if (tlsConfig.ClientAuth == ctls.RequireAnyClientCert && len(rawCerts) == 0) {
+			return errors.New("Sender certificate missing")
+		}
+
+		log("VerifyPeerCertificate called")
+
+		sha256CertHash := sha256.Sum256(rawCerts[0])
+		hexSHA256CertHash := fmt.Sprintf("%x", sha256CertHash)
+
+		// in this section we use a mutex because we want to be sure to never set s.fingerprintCandidate to something else while it is being
+		// fetched by s.GetSenderFingerprintCandidate for being presented to the user
+		s.mu.Lock()
+		if (tlsConfig.ClientAuth == ctls.RequestClientCert) {
+			// prevent multiple register POST (with different senderCertificateHash values) from being sent in succession once
+			// hash is displayed 
+			// NOTE: this is not our session-long pinning - we haven't definitively set s.pinnedFingerprintCandidate! 
+			// we only set s.pinnedSenderCertificateHash on successful sender certificate hash
+			// verification i.e. calling s.PinFingerprint() from registration/handler.go
+			if !s.fingerprintCandidateLockedIn {
+				// still pre-mtls but we have now have a candidate to use for senderFingerprint.
+				s.fingerprintCandidate = hexSHA256CertHash
+				log("sender fingerprint candidate %s", s.fingerprintCandidate)
+			} else {
+				if hexSHA256CertHash != s.fingerprintCandidate {
+					s.mu.Unlock()
+					return errors.New("Hash of incoming request certificate did not match candidate for sender certificate hash")
+				}
+			}
+			s.mu.Unlock()
+			return nil
+		}
+		s.mu.Unlock()
+
+		// we should only reach this point in the routine once we have established mTLS and have a pinned sender certificate hash
+		log("incoming cert hash\n%x\n", sha256CertHash)
+		if hexSHA256CertHash != s.pinnedSenderCertificateHash {
+			return errors.New("Hash of incoming request certificate did not pinned sender certificate hash")
+		}
+		return nil
 	}
 
 	s.tlsConfig = tlsConfig
@@ -153,7 +217,7 @@ func (s *service) Start(port int) error {
 	// TODO (2026-02-19): dhekra / iOS closes the server when the transfer is explicitly stopped
 
 	handler := NewHandler(mux, s.registrationHandler, transferHandler)
-	handler.SetupRoutes()
+	handler.SetupRoutes(s.PinFingerprint, s.GetSenderFingerprintCandidate)
 
 	s.limitingMiddleware = s.limiter.Handler(mux)
 	s.port = port
@@ -200,6 +264,44 @@ func (s *service) startServer() error {
 	return nil
 }
 
+func (s *service) GetSenderFingerprintCandidate() string {
+	var candidate string
+	// use mutex because we want to be sure to never set s.fingerprintCandidate to something else while it is being
+	// fetched for being presented to the user. 
+	//
+	// to limit attack surface, we only every allow setting one fingerprint
+	// candidate once the sender fingerprint candidate has been displayed by the user
+	s.mu.Lock()
+	candidate = s.fingerprintCandidate
+	log("sender fingerprint candidate locked to %s", candidate)
+	s.fingerprintCandidateLockedIn = true
+	s.mu.Unlock()
+	return candidate
+}
+
+// PinFingerprint pins the hexadecimal-encoded SHA256 hash of the raw certificate bytes. The TLS config is changed to require a client cert, which necessitates restarting the https server instance.
+func (s *service) PinFingerprint(senderFingerprint string) error {
+	log("Pin fingerprint called")
+	if len(senderFingerprint) != 64 {
+		return errors.New("expected fingerprint string length of 64ch")
+	}
+	s.pinnedSenderCertificateHash = senderFingerprint
+	// terminate the previous instance
+	shutdownCtx, cancel := context.WithTimeout(s.ctx, 1500*time.Millisecond)
+	defer cancel()
+	if err := s.server.Shutdown(shutdownCtx); err != nil {
+		log("Graceful shutdown failed: %v, forcing close\n", err)
+	}
+	log("Stopped server & restarting")
+	// change the tls config to require client certs on connection going forward.
+	// we use `tls.RequireAnyClientCert` as we do not have the full client cert
+	// => can't create and pass a cert pool that will allow tls.VerifyCertificate to succeed
+	s.tlsConfig.ClientAuth = ctls.RequireAnyClientCert
+	// NOTE cblgh(2026-03-15): we need to allocate a new instance of http.Server and set the updated TLS config on it
+	// before restarting the server for the config changes to take effect
+	return s.startServer()
+}
+
 func (s *service) Stop(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -221,6 +323,9 @@ func (s *service) Stop(ctx context.Context) error {
 	s.server = nil
 	s.tlsConfig = nil
 	s.limitingMiddleware = nil
+	s.pinnedSenderCertificateHash = ""
+	s.fingerprintCandidate = ""
+	s.fingerprintCandidateLockedIn = false
 
 	log("HTTPS Server stopped\n")
 
