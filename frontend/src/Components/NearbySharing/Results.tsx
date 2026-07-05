@@ -3,56 +3,75 @@ import styled from 'styled-components';
 import { sanitizeUGC } from "../../util/util"
 
 interface ResultsStepProps {
-  transferredFiles: number | undefined;
-  totalFiles: number | undefined;
-  folderTitle: string | undefined;
+  transferredFiles: number;
+  totalFiles: number;
+  folderTitle: string;
   onViewFiles: () => void;
+  onTryAgain?: () => void;
 }
 
-// TODO cblgh(2026-02-19): implement the error versions of this screen
-//
-// check icon is an exclamation mark
-//
-// Title: Transfer interrupted
-// Message: x files were successfully received but an error interrupted the transfer and y files were not received.
-//
-// Received files are in the folder %q.
-//
-// buttons: [<icon> try again] [icon view files]
-
-// version for 0 files received:
-//
-// Title: Transfer interrupted
-// Message: An error interrupted the transfer and no files were received.
-//
-// buttons: [<icon> try again]
-//
-
-
-// NOTE cblgh (2026-03-03): the step subtitle currently deviates from the designs. a transfer interrupted screen needs
-// to be implemented, and then we can remove the "x out of y received" text.
 export function ResultsStep({ transferredFiles, totalFiles, folderTitle, onViewFiles }: ResultsStepProps) {
   return (
     <DeviceInfoCard>
       <ResultHeaderContainer>
-        <CheckIcon>✓</CheckIcon>
+        <ResultsIcon>✓</ResultsIcon>
       </ResultHeaderContainer>
       <ResultContent>
         <StepTitle>Success</StepTitle>
         <StepSubtitle>
-          You have successfully received {transferredFiles} out of {totalFiles} from the sender.
+          You have successfully received {transferredFiles} from the sender.
         </StepSubtitle>
         <StepSubtitle>
-          Received files are in the folder "{sanitizeUGC(folderTitle || "Folder")}"
+          Received files are in the folder "{sanitizeUGC(folderTitle || "Folder")}".
         </StepSubtitle>
       </ResultContent>
       <ButtonContainer>
-        <ContinueButton 
+        <ActionButton 
           onClick={onViewFiles}
           $isActive={true}
         >
           VIEW FILES
-        </ContinueButton>
+        </ActionButton>
+      </ButtonContainer>
+    </DeviceInfoCard>
+  );
+}
+// TODO (2026-07-05):
+// * ActionButton  should have icon before text
+export function InterruptedStep({ transferredFiles, totalFiles, folderTitle, onViewFiles, onTryAgain }: ResultsStepProps) {
+  return (
+    <DeviceInfoCard>
+      <ResultHeaderContainer>
+        <ResultsIcon>!</ResultsIcon>
+      </ResultHeaderContainer>
+      <ResultContent>
+        <StepTitle>Transfer interrupted</StepTitle>
+        <StepSubtitle>
+          {transferredFiles} files were received. {totalFiles - transferredFiles} files were not received.
+        </StepSubtitle>
+          { transferredFiles > 0 ? 
+          <StepSubtitle>
+              Received files are in the folder "{sanitizeUGC(folderTitle || "Folder")}".
+          </StepSubtitle>
+          : <></>
+          }
+      </ResultContent>
+      <ButtonContainer>
+        <ActionButton 
+          onClick={onTryAgain}
+          $isActive={true}
+        >
+          TRY AGAIN
+        </ActionButton>
+        { transferredFiles > 0 ? 
+        <ActionButton 
+          onClick={onViewFiles}
+          $isActive={true}
+        >
+          VIEW FILES
+        </ActionButton>
+        : <></> 
+        }
       </ButtonContainer>
     </DeviceInfoCard>
   );
@@ -92,12 +111,15 @@ const StepSubtitle = styled.p`
 
 const ButtonContainer = styled.div`
   border-top: 1px solid #CFCFCF;
+  padding: 1rem;
   display: flex;
   justify-content: center;
-  padding: 1rem;
+  flex-direction: row;
+  gap: 2rem;
 `;
 
-const ContinueButton = styled.button<{ $isActive: boolean }>`
+const ActionButton = styled.button<{ $isActive: boolean }>`
+  width: fit-content;
   background-color: #ffffff;
   color: #8B8E8F;
   border: 1px solid #CFCFCF;
@@ -110,6 +132,15 @@ const ContinueButton = styled.button<{ $isActive: boolean }>`
   opacity: ${({ $isActive }) => $isActive ? '100%' : '36%'}
 `;
 
-const CheckIcon = styled.span`
+const ResultsIcon = styled.span`
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  font-weight: 700;
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  border: 2px solid #8B8E8FCC;
+  color: #8B8E8FCC;
   font-size: 1rem;
 `;

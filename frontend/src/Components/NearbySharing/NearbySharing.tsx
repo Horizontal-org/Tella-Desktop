@@ -5,7 +5,7 @@ import { FileReceiving } from "../FileReceiving/FileReceiving";
 import { FileRequest } from "../FileRequest/FileRequest";
 import { ConnectStep } from "./Connect";
 import { IntroStep } from "./Intro";
-import { ResultsStep } from "./Results";
+import { ResultsStep, InterruptedStep } from "./Results";
 import { useNearbySharing } from "./Hooks/useNearbySharing"
 import { log } from "../../util/util"
 
@@ -27,6 +27,7 @@ export function NearbySharing() {
     handleVerificationConfirm,
     handleReceiverConfirmReceiver,
     handleVerificationDiscard,
+    handleTryAgain,
     handleFileRequestAccept,
     handleFileRequestReject,
     handleFileReceiving,
@@ -80,11 +81,21 @@ export function NearbySharing() {
           />
         )}
         
-        {currentStep === 'results' && (
+        {currentStep === 'results' && transferData && (
           <ResultsStep 
-            transferredFiles={transferData?.transferredFiles} 
-            totalFiles={transferData?.totalFiles} 
-            folderTitle={transferData?.title}
+            transferredFiles={transferData?.transferredFiles || 0} 
+            totalFiles={transferData.totalFiles} 
+            folderTitle={transferData.title}
+            onViewFiles={handleViewFiles} 
+          />
+        )}
+
+        {currentStep === 'interrupted' && transferData && (
+          <InterruptedStep 
+            transferredFiles={transferData?.transferredFiles || 0} 
+            totalFiles={transferData.totalFiles}
+            folderTitle={transferData.title}
+            onTryAgain={handleTryAgain} 
             onViewFiles={handleViewFiles} 
           />
         )}

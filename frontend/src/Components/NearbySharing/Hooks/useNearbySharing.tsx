@@ -5,7 +5,7 @@ import { EventsOn } from "../../../../wailsjs/runtime/runtime";
 import { useServer } from "../../../Contexts/ServerContext";
 import { log } from "../../../util/util"
 
-type FlowStep = 'intro' | 'connect' | 'accept' | 'receive' | 'results';
+type FlowStep = 'intro' | 'connect' | 'accept' | 'receive' | 'results' | 'interrupted';
 type ManualConfirmationState = 'CONFIRM_RECEIVER' | 'CONFIRM_SENDER' 
 
 interface FileInfo {
@@ -124,7 +124,7 @@ export function useNearbySharing() {
       await stopServer();
       if (connectionData.transferOngoing) {
           // TODO cblgh(2026-04-29): set currentStep to something like results-error?
-          setCurrentStep('results');
+          setCurrentStep('interrupted');
       } else {
           setCurrentStep('intro');
       }
@@ -190,6 +190,16 @@ export function useNearbySharing() {
     setCurrentStep('intro');
   };
 
+  const handleTryAgain = async () => {
+    // reset state
+    setShowVerificationModal(false);
+    setModalState('CONFIRM_RECEIVER');
+    setSenderConfirmedReceiver(false);
+
+    await handleStopServer();
+    setCurrentStep('intro');
+  };
+
   // Flow navigation handlers
   const handleBack = async () => {
     if (serverRunning) {
@@ -245,7 +255,7 @@ export function useNearbySharing() {
     }
     await StopTransfer(currentSessionId);
     // TODO cblgh(2026-02-19): set currentStep to results-error?
-    setCurrentStep('results');
+    setCurrentStep('interrupted');
   }
 
   const handleViewFiles = async () => {
@@ -289,6 +299,7 @@ export function useNearbySharing() {
     handleReceiverConfirmReceiver,
     handleVerificationConfirm,
     handleVerificationDiscard,
+    handleTryAgain,
     handleFileRequestAccept,
     handleFileRequestReject,
     handleFileReceiving,
