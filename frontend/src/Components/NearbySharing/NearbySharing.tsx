@@ -2,6 +2,7 @@ import { CertificateVerificationModal } from "../CertificateHash/CertificateVeri
 import { StepIndicator } from "./StepIndicator";
 import styled from 'styled-components';
 import { FileReceiving } from "../FileReceiving/FileReceiving";
+import { Dialog } from '../Dialog/Dialog';
 import { FileRequest } from "../FileRequest/FileRequest";
 import { ConnectStep } from "./Connect";
 import { IntroStep } from "./Intro";
@@ -22,6 +23,10 @@ export function NearbySharing() {
     senderCertificateHash,
     senderConfirmedReceiver,
     modalState,
+
+    showStopDialog,
+    handleHideStopDialog,
+    handleClickStopTransfer,
     
     handleContinue,
     handleVerificationConfirm,
@@ -77,7 +82,7 @@ export function NearbySharing() {
             totalSize={transferData.totalSize}
             files={transferData.files}
             onComplete={handleReceiveComplete}
-            onStop={handleStopTransfer}
+            onClickStop={handleClickStopTransfer}
           />
         )}
         
@@ -100,6 +105,17 @@ export function NearbySharing() {
           />
         )}
       </MainContent>
+
+      <Dialog 
+        isOpen={showStopDialog}
+        onClose={handleHideStopDialog}
+        onConfirm={handleStopTransfer}
+        title='Stop receiving files?'
+        cancelButtonText='CONTINUE NEARBY SHARING'
+        confirmButtonText='STOP' 
+      >
+        <p>Nearby sharing will be stopped. You will not have access to files that were not fully transferred.</p>
+      </Dialog>
 
       <CertificateVerificationModal
         nearbySharingError={nearbySharingError}

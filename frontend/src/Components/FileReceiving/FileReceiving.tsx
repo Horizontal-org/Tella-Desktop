@@ -27,7 +27,7 @@ interface FileReceivingProps {
   totalSize: number;
   files: FileInfo[];
   onComplete: () => void;
-  onStop: () => void;
+  onClickStop: () => void;
 }
 
 export function FileReceiving({ sessionId, 
@@ -36,7 +36,7 @@ export function FileReceiving({ sessionId,
   totalSize, 
   files, 
   onComplete,
-  onStop
+  onClickStop
 }: FileReceivingProps) {
   const [receivingFiles, setReceivingFiles] = useState<FileReceivingData[]>([]);
   const [completedFiles, setCompletedFiles] = useState<FileReceivingData[]>([]);
@@ -197,12 +197,6 @@ export function FileReceiving({ sessionId,
 
   const currentFileNumber = completedFiles.length + (receivingFiles.length > 0 ? 1 : 0);
 
-  const handleCancelTransfer = () => {
-    log("Cancel transfer requested for session:", sessionId);
-    // TODO cblgh(2026-02-16): bubble up call to backend for ending the transfer
-    onStop();
-  };
-
   return (
     <Container>
       <StatusMessage>
@@ -225,7 +219,7 @@ export function FileReceiving({ sessionId,
         </TransferHeader>
 
         <ButtonContainer>
-          <CancelButton onClick={handleCancelTransfer}>
+          <CancelButton onClick={onClickStop}>
             <CancelIcon>✕</CancelIcon>
             STOP TRANSFER
           </CancelButton>

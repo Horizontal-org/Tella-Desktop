@@ -59,6 +59,9 @@ export function useNearbySharing() {
   const [modalState, setModalState] = useState<ManualConfirmationState>('CONFIRM_RECEIVER');
   const [senderConfirmedReceiver, setSenderConfirmedReceiver] = useState<boolean>(false)
 
+  // Stop dialog while receiving files
+  const [showStopDialog, setShowStopDialog] = useState(false);
+
   // Initialize network info and event listeners
   useEffect(() => {
     const fetchNetworkInfo = async () => {
@@ -123,7 +126,6 @@ export function useNearbySharing() {
       const connectionData = data as CloseConnectionData;
       await stopServer();
       if (connectionData.transferOngoing) {
-          // TODO cblgh(2026-04-29): set currentStep to something like results-error?
           setCurrentStep('interrupted');
       } else {
           setCurrentStep('intro');
@@ -246,6 +248,14 @@ export function useNearbySharing() {
     setCurrentStep('results');
   };
 
+  const handleClickStopTransfer = () => { 
+      setShowStopDialog(true)
+  }
+
+  const handleHideStopDialog = () => { 
+      setShowStopDialog(false)
+  }
+
   // called when "stop transfer" is clicked in the middle of an ongoing transfer
   const handleStopTransfer = async () => {
     log("❌ File transfer stopped");
@@ -254,7 +264,7 @@ export function useNearbySharing() {
       await handleStopServer();
     }
     await StopTransfer(currentSessionId);
-    // TODO cblgh(2026-02-19): set currentStep to results-error?
+    setShowStopDialog(false)
     setCurrentStep('interrupted');
   }
 
@@ -268,6 +278,7 @@ export function useNearbySharing() {
 
   // Reset all state
   const resetState = () => {
+    setShowStopDialog(false)
     setCurrentSessionId('');
     setTransferData(null);
     setShowVerificationModal(false);
@@ -293,6 +304,9 @@ export function useNearbySharing() {
     senderConfirmedReceiver,
     modalState,
 
+    showStopDialog,
+    handleHideStopDialog,
+
     // Actions
     handleBack,
     handleContinue,
@@ -306,6 +320,7 @@ export function useNearbySharing() {
     handleStopTransfer,
     handleReceiveComplete,
     handleViewFiles,
+    handleClickStopTransfer,
     
     // Server actions (delegated to context)
     startServer: handleStartServer,
