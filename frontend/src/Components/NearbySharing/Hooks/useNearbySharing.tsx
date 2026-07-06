@@ -33,6 +33,7 @@ interface TransferData {
 interface CloseConnectionData {
   sessionId: string;
   transferOngoing: boolean;
+  numInProgressFiles: number;
 }
 
 export function useNearbySharing() {
@@ -125,8 +126,15 @@ export function useNearbySharing() {
       log("XX Received close-connection", data);
       const connectionData = data as CloseConnectionData;
       await stopServer();
-      if (connectionData.transferOngoing) {
-          setCurrentStep('interrupted');
+      // NOTE (2026-07-06): can close connection sometimes be received in a race-like manner & we accidentally set
+      // "interrupted" while we have received all files?
+      // this should be remedied as of 61ccaad
+      if (connectionData.transferOngoing ) {
+        if (connectionData.numInProgressFiles === 0) {
+            setCurrentStep('results');
+        } else {
+            setCurrentStep('interrupted');
+        }
       } else {
           setCurrentStep('intro');
       }

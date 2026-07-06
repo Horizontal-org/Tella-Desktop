@@ -47,6 +47,7 @@ type TransferSession struct {
 	FileIDs           []string
 	SeenTransmissions map[string]bool
 	ExpiresAt         time.Time
+	NumReceived       int
 }
 
 // timeout = 10 hours. We use a long timeout so that our fallback for cleaning up memory does not risk causing issues
@@ -407,6 +408,7 @@ resolveLoop:
 		return fmt.Errorf("failed to store file")
 	}
 
+	ongoingSession.NumReceived = ongoingSession.NumReceived + 1
 	runtime.EventsEmit(s.ctx, "file-received", map[string]interface{}{
 		"sessionId": sessionID,
 		"fileId":    fileID,
@@ -447,10 +449,17 @@ func (s *service) CloseConnection(sessionID string) error {
 	// if we have a <sessionID>_session stored, then that means we have a transfer ongoing ->
 	// we can use this information to differentiate in the frontend what screen we should pop back to on close-connection
 	// being fired
-	_, transferOngoing := s.transfers.Load(sessionID+"_session")
+	sessionValue, transferOngoing := s.transfers.Load(sessionID+"_session")
+	inprogress := 0
+	if transferOngoing {
+		if session, ok := sessionValue.(*TransferSession); ok {
+			inprogress = len(session.FileIDs) - session.NumReceived
+		}
+	}
 	runtime.EventsEmit(s.ctx, "close-connection", map[string]interface{}{
 		"sessionId":        sessionID,
 		"transferOngoing":  transferOngoing,
+		"numInProgressFiles":  inprogress,
 	})
 
 	s.endTransfer(sessionID)
