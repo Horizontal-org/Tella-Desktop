@@ -20,13 +20,19 @@ interface FileInfo {
   fileType: string;
 }
 
+interface OnCompleteProps {
+    numFailed: number;
+    numReceived: number;
+    totalFiles: number;
+}
+
 interface FileReceivingProps {
   sessionId: string;
   transferTitle: string;
   totalFiles: number;
   totalSize: number;
   files: FileInfo[];
-  onComplete: () => void;
+  onComplete: (completeProps: OnCompleteProps) => void;
   onClickStop: () => void;
 }
 
@@ -116,7 +122,7 @@ export function FileReceiving({ sessionId,
             if ((failedFiles.length + newCompleted.length) === totalFiles && totalFiles > 0) {
               log("🎉 All files completed!");
               // TODO cblgh(2026-02-16): call down to the backend for a new fn "CleanupTransfer / AllFilesResolved". 
-              setTimeout(() => onComplete(), 1000);
+              setTimeout(() => onComplete({ totalFiles: totalFiles, numReceived: newCompleted.length,  numFailed: failedFiles.length }), 1000);
             }
             return newCompleted;
           }
@@ -143,7 +149,7 @@ export function FileReceiving({ sessionId,
             if ((newFailed.length + completedFiles.length) === totalFiles && totalFiles > 0) {
               log("🎉 All files completed!");
               // TODO cblgh(2026-02-16): call down to the backend for a new fn "CleanupTransfer / AllFilesResolved". 
-              setTimeout(() => onComplete(), 1000);
+              setTimeout(() => onComplete({ totalFiles: totalFiles, numReceived: completedFiles.length,  numFailed: newFailed.length }), 1000);
             }
             return newFailed;
           }
@@ -173,7 +179,7 @@ export function FileReceiving({ sessionId,
       if (cancelData.sessionId === sessionId) {
         setReceivingFiles([]);
         setCompletedFiles([]);
-        onComplete();
+        onComplete({totalFiles, numReceived: 0, numFailed: 0});
       }
     });
 

@@ -8,6 +8,12 @@ import { log } from "../../../util/util"
 type FlowStep = 'intro' | 'connect' | 'accept' | 'receive' | 'results' | 'interrupted';
 type ManualConfirmationState = 'CONFIRM_RECEIVER' | 'CONFIRM_SENDER' 
 
+interface OnReceiveCompleteProps {
+    numFailed: number;
+    numReceived: number;
+    totalFiles: number;
+}
+
 interface FileInfo {
   id: string;
   fileName: string;
@@ -129,7 +135,7 @@ export function useNearbySharing() {
       // NOTE (2026-07-06): can close connection sometimes be received in a race-like manner & we accidentally set
       // "interrupted" while we have received all files?
       // this should be remedied as of 61ccaad
-      if (connectionData.transferOngoing ) {
+      if (connectionData.transferOngoing) {
         if (connectionData.numInProgressFiles === 0) {
             setCurrentStep('results');
         } else {
@@ -245,7 +251,7 @@ export function useNearbySharing() {
     setCurrentStep('receive');
   };
 
-  const handleReceiveComplete = async () => {
+  const handleReceiveComplete = async ({ totalFiles, numReceived, numFailed }: OnReceiveCompleteProps) => {
     log("✅ File receiving completed");
     // all files have been handled (either completely transferred or failed) we can close the transfer session
     await StopTransfer(currentSessionId);
@@ -253,7 +259,13 @@ export function useNearbySharing() {
     if (serverRunning) {
       await handleStopServer();
     }
-    setCurrentStep('results');
+    log(`total ${totalFiles} numRecv ${numReceived} numFailed ${numFailed}`)
+    if (numFailed > 0 || numReceived < totalFiles) {
+        setCurrentStep('interrupted');
+    } else {
+        // if all files were received and none of them were failed:
+        setCurrentStep('results');
+    }
   };
 
   const handleClickStopTransfer = () => { 

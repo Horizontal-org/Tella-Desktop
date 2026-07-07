@@ -19,7 +19,7 @@ export function ResultsStep({ transferredFiles, totalFiles, folderTitle, onViewF
       <ResultContent>
         <StepTitle>Success</StepTitle>
         <StepSubtitle>
-          You have successfully received {transferredFiles} from the sender.
+          You have successfully received {transferredFiles} files from the sender.
         </StepSubtitle>
         <StepSubtitle>
           Received files are in the folder "{sanitizeUGC(folderTitle || "Folder")}".
