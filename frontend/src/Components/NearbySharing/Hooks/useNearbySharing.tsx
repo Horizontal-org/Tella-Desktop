@@ -5,8 +5,14 @@ import { EventsOn } from "../../../../wailsjs/runtime/runtime";
 import { useServer } from "../../../Contexts/ServerContext";
 import { log } from "../../../util/util"
 
-type FlowStep = 'intro' | 'connect' | 'accept' | 'receive' | 'results';
+type FlowStep = 'intro' | 'connect' | 'accept' | 'receive' | 'results' | 'interrupted';
 type ManualConfirmationState = 'CONFIRM_RECEIVER' | 'CONFIRM_SENDER' 
+
+interface OnReceiveCompleteProps {
+    numFailed: number;
+    numReceived: number;
+    totalFiles: number;
+}
 
 interface FileInfo {
   id: string;
@@ -33,6 +39,7 @@ interface TransferData {
 interface CloseConnectionData {
   sessionId: string;
   transferOngoing: boolean;
+  numInProgressFiles: number;
 }
 
 export function useNearbySharing() {
@@ -58,6 +65,9 @@ export function useNearbySharing() {
   const [senderCertificateHash, setSenderCertificateHash] = useState<string>('');
   const [modalState, setModalState] = useState<ManualConfirmationState>('CONFIRM_RECEIVER');
   const [senderConfirmedReceiver, setSenderConfirmedReceiver] = useState<boolean>(false)
+
+  // Stop dialog while receiving files
+  const [showStopDialog, setShowStopDialog] = useState(false);
 
   // Initialize network info and event listeners
   useEffect(() => {
@@ -122,9 +132,15 @@ export function useNearbySharing() {
       log("XX Received close-connection", data);
       const connectionData = data as CloseConnectionData;
       await stopServer();
+      // NOTE (2026-07-06): can close connection sometimes be received in a race-like manner & we accidentally set
+      // "interrupted" while we have received all files?
+      // this should be remedied as of 61ccaad
       if (connectionData.transferOngoing) {
-          // TODO cblgh(2026-04-29): set currentStep to something like results-error?
-          setCurrentStep('results');
+        if (connectionData.numInProgressFiles === 0) {
+            setCurrentStep('results');
+        } else {
+            setCurrentStep('interrupted');
+        }
       } else {
           setCurrentStep('intro');
       }
@@ -190,6 +206,16 @@ export function useNearbySharing() {
     setCurrentStep('intro');
   };
 
+  const handleTryAgain = async () => {
+    // reset state
+    setShowVerificationModal(false);
+    setModalState('CONFIRM_RECEIVER');
+    setSenderConfirmedReceiver(false);
+
+    await handleStopServer();
+    setCurrentStep('intro');
+  };
+
   // Flow navigation handlers
   const handleBack = async () => {
     if (serverRunning) {
@@ -225,7 +251,7 @@ export function useNearbySharing() {
     setCurrentStep('receive');
   };
 
-  const handleReceiveComplete = async () => {
+  const handleReceiveComplete = async ({ totalFiles, numReceived, numFailed }: OnReceiveCompleteProps) => {
     log("✅ File receiving completed");
     // all files have been handled (either completely transferred or failed) we can close the transfer session
     await StopTransfer(currentSessionId);
@@ -233,8 +259,22 @@ export function useNearbySharing() {
     if (serverRunning) {
       await handleStopServer();
     }
-    setCurrentStep('results');
+    log(`total ${totalFiles} numRecv ${numReceived} numFailed ${numFailed}`)
+    if (numFailed > 0 || numReceived < totalFiles) {
+        setCurrentStep('interrupted');
+    } else {
+        // if all files were received and none of them were failed:
+        setCurrentStep('results');
+    }
   };
+
+  const handleClickStopTransfer = () => { 
+      setShowStopDialog(true)
+  }
+
+  const handleHideStopDialog = () => { 
+      setShowStopDialog(false)
+  }
 
   // called when "stop transfer" is clicked in the middle of an ongoing transfer
   const handleStopTransfer = async () => {
@@ -244,8 +284,8 @@ export function useNearbySharing() {
       await handleStopServer();
     }
     await StopTransfer(currentSessionId);
-    // TODO cblgh(2026-02-19): set currentStep to results-error?
-    setCurrentStep('results');
+    setShowStopDialog(false)
+    setCurrentStep('interrupted');
   }
 
   const handleViewFiles = async () => {
@@ -258,6 +298,7 @@ export function useNearbySharing() {
 
   // Reset all state
   const resetState = () => {
+    setShowStopDialog(false)
     setCurrentSessionId('');
     setTransferData(null);
     setShowVerificationModal(false);
@@ -283,18 +324,23 @@ export function useNearbySharing() {
     senderConfirmedReceiver,
     modalState,
 
+    showStopDialog,
+    handleHideStopDialog,
+
     // Actions
     handleBack,
     handleContinue,
     handleReceiverConfirmReceiver,
     handleVerificationConfirm,
     handleVerificationDiscard,
+    handleTryAgain,
     handleFileRequestAccept,
     handleFileRequestReject,
     handleFileReceiving,
     handleStopTransfer,
     handleReceiveComplete,
     handleViewFiles,
+    handleClickStopTransfer,
     
     // Server actions (delegated to context)
     startServer: handleStartServer,

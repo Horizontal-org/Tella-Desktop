@@ -59,7 +59,6 @@ func (s *service) StoreFile(folderID, claimedSize int64, claimedHash string, fil
 	//
 	// as a piece of debugging information, it happens after ~150MB is sent.
 	fileData, err := io.ReadAll(reader)
-	log("filestore err?", fileName, err)
 	if err != nil {
 		// need to return "%w" here so we can unwrap it in package transfer
 		return nil, fmt.Errorf("failed to read file data: %w", err)
@@ -78,7 +77,7 @@ func (s *service) StoreFile(folderID, claimedSize int64, claimedHash string, fil
 	}
 
 	originalSize := int64(len(fileData))
-	log("filestore", fileName, "read size", originalSize)
+	log("filestore %q read size %d", fileName, originalSize)
 	if originalSize != claimedSize {
 		log("file %q: downloaded size (%d) did not match claimed size (%d) from prepareUpload (difference: %d)", fileName, originalSize, claimedSize, originalSize-claimedSize)
 		return nil, errStoreFile

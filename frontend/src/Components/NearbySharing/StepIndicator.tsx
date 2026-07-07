@@ -19,10 +19,15 @@ export const FLOW_STEPS: Step[] = [
 ];
 
 export function StepIndicator({ currentStep }: StepIndicatorProps) {
-  const currentStepNumber = FLOW_STEPS.find(step => step.key === currentStep)?.number || 1;
+  let currentStepNumber = FLOW_STEPS.find(step => step.key === currentStep)?.number || 1;
+  if (currentStep === "interrupted") {
+      currentStepNumber = 5
+  }
   
   const getStepState = (step: Step) => {
-    if (step.number < currentStepNumber) {
+    if (step.number === 5 && currentStep === "interrupted") {
+      return 'interrupted';
+    } else if (step.number < currentStepNumber) {
       return 'completed';
     } else if (step.number === currentStepNumber) {
       return 'active';
@@ -31,6 +36,17 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
     }
   };
 
+  const getStepCircleContent = (stepState: string, stepNumber: number) => {
+              if (stepState === 'completed') {
+                return <CheckIcon>✓</CheckIcon>
+              } else if (stepState === 'interrupted') {
+                return <CheckIcon>!</CheckIcon>
+              }
+              return <>
+              {stepNumber}
+              </>
+  }
+
   // TODO (2026-06-17): add centered visual line connecting each interior step circle
   return (
     <StepIndicatorContainer>
@@ -38,17 +54,19 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
         const stepState = getStepState(step);
         
         return (
+            <>
           <StepItem key={step.key}>
             <StepCircle $stepState={stepState}>
-              {stepState === 'completed' ? (
-                <CheckIcon>✓</CheckIcon>
-              ) : (
-                step.number
-              )}
+                {getStepCircleContent(stepState, index+1)}
             </StepCircle>
-            <StepLabel>{step.label}</StepLabel>
+            <StepLabel $stepState={stepState}>{step.label}</StepLabel>
             {index < FLOW_STEPS.length - 1 && <StepConnector />}
           </StepItem>
+          { index <= 3 ?
+            <StepLine $stepState={stepState}/>
+          : <></>
+          }
+        </>
         );
       })}
     </StepIndicatorContainer>
@@ -66,15 +84,47 @@ const StepIndicatorContainer = styled.div`
 
 const StepItem = styled.div`
   display: flex;
+  min-width: 52px;
   flex-direction: column;
   align-items: center;
   position: relative;
-  padding-right: 1rem;
 `;
 
-const StepCircle = styled.div<{ $stepState: 'completed' | 'active' | 'pending' }>`
-  width: 32px;
-  height: 32px;
+const StepLine = styled.div<{ $stepState: 'completed' | 'active' | 'pending' | 'interrupted' }>`
+    display: grid;
+    align-self: start;
+    margin-top: 0.70rem;
+    height: 2px;
+    width: 40px;
+  ${({ $stepState }) => {
+    switch ($stepState) {
+      case 'interrupted':
+        return `
+          background-color: #28a745;
+        `;
+      case 'completed':
+        return `
+          background-color: #28a745;
+        `;
+      case 'active':
+        return `
+          background-color: #CFCFCF;
+        `;
+      case 'pending':
+        return `
+          background-color: #CFCFCF;
+        `;
+      default:
+        return `
+          background-color: #CFCFCF;
+        `;
+    }
+  }}
+`; 
+
+const StepCircle = styled.div<{ $stepState: 'completed' | 'active' | 'pending' | 'interrupted' }>`
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -85,6 +135,12 @@ const StepCircle = styled.div<{ $stepState: 'completed' | 'active' | 'pending' }
   
   ${({ $stepState }) => {
     switch ($stepState) {
+      case 'interrupted':
+        return `
+          background-color: red;
+          color: white;
+          border: none;
+        `;
       case 'completed':
         return `
           background-color: #28a745;
@@ -117,9 +173,17 @@ const CheckIcon = styled.span`
   font-size: 1rem;
 `;
 
-const StepLabel = styled.span`
+const StepLabel = styled.span<{ $stepState: 'completed' | 'active' | 'pending' | 'interrupted' }>`
   font-size: 0.875rem;
   color: #6c757d;
+  ${({ $stepState }) => {
+    switch ($stepState) {
+      case 'active':
+        return `
+          font-weight: 700;
+        `;
+    }
+  }}
 `;
 
 const StepConnector = styled.div`
